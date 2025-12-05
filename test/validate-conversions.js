@@ -26,7 +26,7 @@ const API_BASE_URL = "https://snazzymaps.com/explore.json";
  */
 function getApiKey() {
   const apiKey =
-    process.env.SNAZZY_MAPS_API_KEY || process.env.VITE_SNAZZY_MAPS_API_KEY;
+    process.env.SNAZZY_MAPS_API_KEY ?? process.env.VITE_SNAZZY_MAPS_API_KEY;
   if (!apiKey) {
     throw new Error(
       "SNAZZY_MAPS_API_KEY or VITE_SNAZZY_MAPS_API_KEY is not set. Please set it in your .env file or as an environment variable."
@@ -63,10 +63,9 @@ async function fetchStylesFromAPI(options = {}) {
 
     const data = await response.json();
 
-    // Handle different possible response structures
     return Array.isArray(data)
       ? data
-      : data.results || data.styles || data.data || [];
+      : data?.results ?? data?.styles ?? data?.data ?? [];
   } catch (error) {
     throw new Error(
       `Failed to fetch styles from Snazzy Maps: ${error.message}`
@@ -103,16 +102,12 @@ async function getV1ExampleStyles() {
  * @returns {Promise<Object>} Parsed V1 JSON object
  */
 async function loadV1JsonFromStyle(style) {
+  if (!style?.json) {
+    throw new Error("Style does not contain JSON data");
+  }
+
   try {
-    if (!style || !style.json) {
-      throw new Error("Style does not contain JSON data");
-    }
-
-    // The json field is a string containing the V1 style JSON
-    const v1Json =
-      typeof style.json === "string" ? JSON.parse(style.json) : style.json;
-
-    return v1Json;
+    return typeof style.json === "string" ? JSON.parse(style.json) : style.json;
   } catch (error) {
     throw new Error(`Failed to load V1 JSON from style: ${error.message}`);
   }
@@ -127,17 +122,13 @@ async function loadV1JsonFromStyle(style) {
 function getValueAtPath(obj, path) {
   if (!path || path === "/") return obj;
 
-  const parts = path.split("/").filter((p) => p !== "");
+  const parts = path.split("/").filter(Boolean);
   let current = obj;
 
   for (const part of parts) {
-    if (current === undefined || current === null) return undefined;
+    if (current == null) return undefined;
     const index = parseInt(part, 10);
-    if (!isNaN(index)) {
-      current = current[index];
-    } else {
-      current = current[part];
-    }
+    current = !isNaN(index) ? current[index] : current[part];
   }
 
   return current;
@@ -150,40 +141,28 @@ function getValueAtPath(obj, path) {
  * @param {Object} v2Json - V2 JSON object for context (optional)
  * @returns {string} YAML-formatted error block
  */
+function extractFeatureId(v2Json, path) {
+  if (!v2Json || !path) return undefined;
+
+  const styleMatch = path.match(/^\/styles\/(\d+)\//);
+  if (styleMatch) {
+    const styleIndex = parseInt(styleMatch[1], 10);
+    return v2Json.styles?.[styleIndex]?.id;
+  }
+  return undefined;
+}
+
 function formatErrorYaml(message, errors = null, v2Json = null) {
   const lines = [`  ---`, `  message: ${JSON.stringify(message)}`];
 
-  if (errors && errors.length > 0) {
+  if (errors?.length) {
     lines.push(`  errors:`);
     for (const error of errors) {
-      const path = error.instancePath || error.schemaPath || "";
-      const errorMsg = error.message || "Validation error";
-
-      // Get the actual value at the error path
-      let actualValue = undefined;
-      let featureId = undefined;
-
-      if (v2Json && path) {
-        actualValue = getValueAtPath(v2Json, path);
-
-        // If error is about /styles/N/id, extract the feature ID for context
-        const styleMatch = path.match(/^\/styles\/(\d+)\/id$/);
-        if (styleMatch) {
-          const styleIndex = parseInt(styleMatch[1], 10);
-          if (v2Json.styles && v2Json.styles[styleIndex]) {
-            featureId = v2Json.styles[styleIndex].id;
-          }
-        }
-
-        // If error is about /styles/N/something, get the feature ID
-        const stylePropMatch = path.match(/^\/styles\/(\d+)\//);
-        if (stylePropMatch && !featureId) {
-          const styleIndex = parseInt(stylePropMatch[1], 10);
-          if (v2Json.styles && v2Json.styles[styleIndex]) {
-            featureId = v2Json.styles[styleIndex].id;
-          }
-        }
-      }
+      const path = error.instancePath ?? error.schemaPath ?? "";
+      const errorMsg = error.message ?? "Validation error";
+      const actualValue =
+        v2Json && path ? getValueAtPath(v2Json, path) : undefined;
+      const featureId = extractFeatureId(v2Json, path);
 
       lines.push(`    - path: ${JSON.stringify(path)}`);
       lines.push(`      message: ${JSON.stringify(errorMsg)}`);
@@ -193,11 +172,7 @@ function formatErrorYaml(message, errors = null, v2Json = null) {
       }
 
       if (actualValue !== undefined) {
-        const valueStr =
-          typeof actualValue === "object"
-            ? JSON.stringify(actualValue)
-            : JSON.stringify(actualValue);
-        lines.push(`      actualValue: ${valueStr}`);
+        lines.push(`      actualValue: ${JSON.stringify(actualValue)}`);
       }
     }
   }
@@ -226,7 +201,7 @@ async function runTests() {
 
   for (let i = 0; i < styles.length; i++) {
     const style = styles[i];
-    const styleName = style.name || `Style #${style.id}`;
+    const styleName = style.name ?? `Style #${style.id}`;
     const styleId = style.id;
     const testNumber = i + 1;
 
@@ -297,23 +272,11 @@ async function runTests() {
         console.log(`#     Error: ${failure.error}`);
       }
       if (failure.errors) {
-        // Show enhanced error summary with feature IDs
         console.log(`#     Validation errors:`);
         for (const error of failure.errors) {
-          const path = error.instancePath || error.schemaPath || "";
-          const errorMsg = error.message || "Validation error";
-
-          // Extract feature ID if this is a style error
-          let featureId = undefined;
-          if (failure.v2Json) {
-            const styleMatch = path.match(/^\/styles\/(\d+)\//);
-            if (styleMatch) {
-              const styleIndex = parseInt(styleMatch[1], 10);
-              if (failure.v2Json.styles && failure.v2Json.styles[styleIndex]) {
-                featureId = failure.v2Json.styles[styleIndex].id;
-              }
-            }
-          }
+          const path = error.instancePath ?? error.schemaPath ?? "";
+          const errorMsg = error.message ?? "Validation error";
+          const featureId = extractFeatureId(failure.v2Json, path);
 
           let errorLine = `#       ${path}: ${errorMsg}`;
           if (featureId !== undefined) {

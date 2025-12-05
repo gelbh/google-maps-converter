@@ -55,14 +55,9 @@ export async function validateV2(v2Json) {
 
   const valid = validate(v2Json);
 
-  if (valid) {
-    return { valid: true, errors: null };
-  } else {
-    return {
-      valid: false,
-      errors: validate.errors || [],
-    };
-  }
+  return valid
+    ? { valid: true, errors: null }
+    : { valid: false, errors: validate.errors ?? [] };
 }
 
 /**
@@ -71,15 +66,15 @@ export async function validateV2(v2Json) {
  * @returns {string} Formatted error message
  */
 export function formatValidationErrors(errors) {
-  if (!errors || errors.length === 0) {
+  if (!errors?.length) {
     return "Unknown validation error";
   }
 
   return errors
     .map((error) => {
-      const path = error.instancePath || error.schemaPath || "";
-      const message = error.message || "Validation error";
-      return `${path ? path + ": " : ""}${message}`;
+      const path = error.instancePath ?? error.schemaPath ?? "";
+      const message = error.message ?? "Validation error";
+      return path ? `${path}: ${message}` : message;
     })
     .join("\n");
 }
