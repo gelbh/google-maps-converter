@@ -26,9 +26,9 @@ function getApiKey() {
 /**
  * Fetches styles from Snazzy Maps API
  * @param {Object} options - Query parameters
- * @param {string} [options.sort] - Sort order (e.g., 'popular', 'newest')
- * @param {string} [options.tag] - Filter by tag
- * @param {string} [options.color] - Filter by color
+ * @param {string} [options.sort] - Sort order (e.g., 'popular', 'newest', 'alphabetical')
+ * @param {string|string[]} [options.tag] - Filter by tag(s) - can be single tag or array
+ * @param {string|string[]} [options.color] - Filter by color(s) - can be single color or array
  * @param {string} [options.text] - Search text
  * @param {number} [options.page=1] - Page number
  * @param {number} [options.pageSize=12] - Number of styles per page
@@ -41,8 +41,19 @@ export async function fetchStyles(options = {}) {
   // API key is required - use query parameter to avoid CORS preflight issues
   params.append("key", getApiKey());
   if (sort) params.append("sort", sort);
-  if (tag) params.append("tag", tag);
-  if (color) params.append("color", color);
+  // Handle multiple tags/colors - API may support comma-separated or multiple params
+  if (tag) {
+    const tags = Array.isArray(tag) ? tag : [tag];
+    tags.forEach((t) => {
+      if (t) params.append("tag", t);
+    });
+  }
+  if (color) {
+    const colors = Array.isArray(color) ? color : [color];
+    colors.forEach((c) => {
+      if (c) params.append("color", c);
+    });
+  }
   if (text) params.append("text", text);
   params.append("page", page.toString());
   params.append("pageSize", pageSize.toString());
@@ -88,16 +99,29 @@ export async function fetchStyleById(styleId) {
 
     const data = await response.json();
 
+    // Handle different response structures
+    let styleData = data;
+    if (Array.isArray(data)) {
+      styleData = data[0] || data;
+    } else if (data.results && Array.isArray(data.results)) {
+      styleData = data.results[0] || data;
+    } else if (data.data) {
+      styleData = data.data;
+    }
+
     // The API returns styles with a 'json' field containing the V1 style JSON as a string
-    if (data && data.json) {
+    if (styleData && styleData.json) {
       try {
-        data.parsedJson = JSON.parse(data.json);
+        styleData.parsedJson = JSON.parse(styleData.json);
       } catch (parseError) {
-        console.warn(`Failed to parse JSON for style ${styleId}:`, parseError);
+        console.warn(
+          `Failed to parse JSON for style ${styleId}:`,
+          parseError
+        );
       }
     }
 
-    return data;
+    return styleData || data;
   } catch (error) {
     throw new Error(
       `Failed to fetch style ${styleId} from Snazzy Maps: ${error.message}`
@@ -121,4 +145,122 @@ export function parseStyleJson(style) {
     console.error("Failed to parse style JSON:", error);
     return null;
   }
+}
+
+/**
+ * Debounce helper function to limit function calls
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Delay in milliseconds
+ * @returns {Function} Debounced function
+ */
+export function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
+/**
+ * Extracts available tags from a list of styles
+ * @param {Array} styles - Array of style objects
+ * @returns {Array<string>} Array of unique tag names
+ */
+export function extractTagsFromStyles(styles) {
+  const tagsSet = new Set();
+  styles.forEach((style) => {
+    if (style.tags && Array.isArray(style.tags)) {
+      style.tags.forEach((tag) => {
+        if (tag && typeof tag === "string") {
+          tagsSet.add(tag);
+        }
+      });
+    }
+  });
+  return Array.from(tagsSet).sort();
+}
+
+/**
+ * Extracts available colors from a list of styles
+ * @param {Array} styles - Array of style objects
+ * @returns {Array<string>} Array of unique color names
+ */
+export function extractColorsFromStyles(styles) {
+  const colorsSet = new Set();
+  styles.forEach((style) => {
+    if (style.color && typeof style.color === "string") {
+      colorsSet.add(style.color);
+    }
+    // Also check for colors in tags if they follow a pattern
+    if (style.tags && Array.isArray(style.tags)) {
+      style.tags.forEach((tag) => {
+        // Check if tag looks like a color (basic heuristic)
+        const colorLike = tag.toLowerCase();
+        const commonColors = [
+          "black",
+          "white",
+          "gray",
+          "grey",
+          "red",
+          "blue",
+          "green",
+          "yellow",
+          "orange",
+          "purple",
+          "pink",
+          "brown",
+        ];
+        if (commonColors.some((c) => colorLike.includes(c))) {
+          colorsSet.add(tag);
+        }
+      });
+    }
+  });
+  return Array.from(colorsSet).sort();
+}
+
+/**
+ * Fetches a larger set of styles to extract available tags and colors
+ * Note: This is a helper that fetches multiple pages to build a comprehensive list
+ * @param {number} [maxPages=5] - Maximum number of pages to fetch
+ * @returns {Promise<{tags: Array<string>, colors: Array<string>}>}
+ */
+export async function fetchAvailableFilters(maxPages = 5) {
+  const tagsSet = new Set();
+  const colorsSet = new Set();
+
+  try {
+    // Fetch multiple pages to get a good sample
+    for (let page = 1; page <= maxPages; page++) {
+      const response = await fetchStyles({
+        sort: "popular",
+        page,
+        pageSize: 50,
+      });
+
+      const styles = Array.isArray(response)
+        ? response
+        : response.results || response.styles || response.data || [];
+
+      if (styles.length === 0) break;
+
+      // Extract tags and colors
+      const tags = extractTagsFromStyles(styles);
+      const colors = extractColorsFromStyles(styles);
+
+      tags.forEach((tag) => tagsSet.add(tag));
+      colors.forEach((color) => colorsSet.add(color));
+    }
+  } catch (error) {
+    console.warn("Failed to fetch all filter options:", error);
+  }
+
+  return {
+    tags: Array.from(tagsSet).sort(),
+    colors: Array.from(colorsSet).sort(),
+  };
 }

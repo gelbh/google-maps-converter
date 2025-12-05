@@ -9,6 +9,10 @@ import {
   fetchStyles,
   fetchStyleById,
   parseStyleJson,
+  debounce,
+  fetchAvailableFilters,
+  extractTagsFromStyles,
+  extractColorsFromStyles,
 } from "./snazzy-maps-api.js";
 
 // Wait for CodeMirror to be available
@@ -102,8 +106,6 @@ const clearBtn = document.getElementById("clear-btn");
 const copyBtn = document.getElementById("copy-btn");
 const downloadBtn = document.getElementById("download-btn");
 const fileInput = document.getElementById("file-input");
-const styleSelect = document.getElementById("style-select");
-const styleSelectLoading = document.getElementById("style-select-loading");
 const loading = document.getElementById("loading");
 const errorDisplay = document.getElementById("error-display");
 const validationStatus = document.getElementById("validation-status");
@@ -117,7 +119,6 @@ const closeValidationErrors = document.getElementById(
 
 function initializeApp(v1Input, v2Output) {
   let currentV2Output = null;
-  let loadedStyles = [];
 
   // Event listeners
   convertBtn.addEventListener("click", handleConvert);
@@ -125,11 +126,10 @@ function initializeApp(v1Input, v2Output) {
   copyBtn.addEventListener("click", handleCopy);
   downloadBtn.addEventListener("click", handleDownload);
   fileInput.addEventListener("change", handleFileUpload);
-  styleSelect.addEventListener("change", handleStyleLoad);
   closeValidationErrors.addEventListener("click", hideValidationErrors);
 
-  // Load styles from Snazzy Maps API on initialization
-  loadStylesFromAPI();
+  // Initialize style browser modal
+  initializeStyleModal(v1Input);
 
   // Make validation status clickable to toggle errors
   validationStatus.addEventListener("click", () => {
@@ -224,89 +224,97 @@ function initializeApp(v1Input, v2Output) {
   }
 
   /**
-   * Loads styles from Snazzy Maps API and populates the dropdown
+   * Loads a style from Snazzy Maps API into the editor
+   * @param {string|number} styleId - Style ID
+   * @param {Object} [cachedStyle] - Optional cached style object from grid
    */
-  async function loadStylesFromAPI() {
-    styleSelectLoading.classList.remove("hidden");
-    styleSelect.disabled = true;
-
-    try {
-      const response = await fetchStyles({
-        sort: "popular",
-        page: 1,
-        pageSize: 50,
-      });
-
-      // Handle different possible response structures
-      loadedStyles = Array.isArray(response)
-        ? response
-        : response.results || response.styles || response.data || [];
-
-      // Clear existing options except the first one
-      styleSelect.innerHTML =
-        '<option value="" style="background: rgba(15, 23, 42, 0.9); color: white;">Load Snazzy Maps Style...</option>';
-
-      // Populate dropdown with styles
-      loadedStyles.forEach((style) => {
-        const option = document.createElement("option");
-        option.value = style.id;
-        option.textContent = style.name || `Style #${style.id}`;
-        option.setAttribute(
-          "style",
-          "background: rgba(15, 23, 42, 0.9); color: white;"
-        );
-        styleSelect.appendChild(option);
-      });
-
-      if (loadedStyles.length === 0) {
-        styleSelect.innerHTML =
-          '<option value="" style="background: rgba(15, 23, 42, 0.9); color: white;">No styles found</option>';
-      }
-    } catch (error) {
-      console.error("Failed to load styles:", error);
-      styleSelect.innerHTML =
-        '<option value="" style="background: rgba(15, 23, 42, 0.9); color: white;">Failed to load styles</option>';
-      showError(`Failed to load styles from Snazzy Maps: ${error.message}`);
-    } finally {
-      styleSelectLoading.classList.add("hidden");
-      styleSelect.disabled = false;
-    }
-  }
-
-  /**
-   * Handles style loading from Snazzy Maps API
-   */
-  async function handleStyleLoad(event) {
-    const styleId = event.target.value;
+  async function handleStyleSelection(styleId, cachedStyle = null) {
     if (!styleId) return;
 
+    showLoading(true);
     try {
-      let selectedStyle = loadedStyles.find(
-        (s) => s.id === styleId || s.id?.toString() === styleId
-      );
+      let selectedStyle = cachedStyle;
 
-      // If style not found in loaded list or doesn't have JSON, fetch it individually
-      if (!selectedStyle || !selectedStyle.json) {
-        styleSelectLoading.classList.remove("hidden");
-        styleSelect.disabled = true;
+      // If we have cached style data with JSON, try to use it first
+      if (cachedStyle && cachedStyle.json) {
+        const v1Json = parseStyleJson(cachedStyle);
+        if (v1Json) {
+          const formatted = JSON.stringify(v1Json, null, 2);
+          v1Input.setValue(formatted);
+          hideError();
+          return;
+        }
+      }
 
-        try {
-          selectedStyle = await fetchStyleById(styleId);
-        } finally {
-          styleSelectLoading.classList.add("hidden");
-          styleSelect.disabled = false;
+      // Otherwise, fetch the full style from API
+      const response = await fetchStyleById(styleId);
+
+      // Handle different response structures
+      if (!selectedStyle) {
+        selectedStyle = response;
+        if (Array.isArray(response)) {
+          selectedStyle = response[0];
+        } else if (response.results && Array.isArray(response.results)) {
+          selectedStyle = response.results[0];
+        } else if (response.data) {
+          selectedStyle = response.data;
         }
       }
 
       if (!selectedStyle) {
-        throw new Error("Selected style not found");
+        throw new Error("Selected style not found in API response");
       }
 
-      // Extract the JSON field from the style (it's a string containing V1 style JSON)
-      const v1Json = parseStyleJson(selectedStyle);
+      // Try to extract the JSON field - it might be in different formats
+      let v1Json = null;
+
+      // First, try to use parsedJson if available (from fetchStyleById)
+      if (selectedStyle.parsedJson) {
+        v1Json = selectedStyle.parsedJson;
+      } else if (selectedStyle.json) {
+        // Try to parse the json field
+        v1Json = parseStyleJson(selectedStyle);
+        if (!v1Json) {
+          // If parsing failed, try to parse it as a string
+          try {
+            if (typeof selectedStyle.json === "string") {
+              v1Json = JSON.parse(selectedStyle.json);
+            } else {
+              v1Json = selectedStyle.json;
+            }
+          } catch (e) {
+            console.warn("Failed to parse style JSON:", e);
+          }
+        }
+      } else if (selectedStyle.styles) {
+        // If the response has a styles array, use it directly
+        v1Json = { styles: selectedStyle.styles };
+      } else if (Array.isArray(selectedStyle)) {
+        // If the response is an array of styles
+        v1Json = { styles: selectedStyle };
+      } else {
+        // Check if the style object itself looks like V1 JSON
+        if (selectedStyle.variant || selectedStyle.styles) {
+          v1Json = selectedStyle;
+        }
+      }
 
       if (!v1Json) {
-        throw new Error("Style does not contain valid JSON");
+        // Log detailed information for debugging
+        console.error("Style response structure:", selectedStyle);
+        console.error("Available fields:", Object.keys(selectedStyle));
+
+        // Try to see if there's any JSON-like data anywhere in the response
+        const jsonFields = Object.keys(selectedStyle).filter(
+          (key) =>
+            key.toLowerCase().includes("json") ||
+            key.toLowerCase().includes("style")
+        );
+        console.error("Fields containing 'json' or 'style':", jsonFields);
+
+        throw new Error(
+          `Style does not contain valid JSON. The style may not be available, may require authentication, or may be in an unsupported format. Please check the browser console for details.`
+        );
       }
 
       // Format and set the V1 JSON in the editor
@@ -314,11 +322,11 @@ function initializeApp(v1Input, v2Output) {
       v1Input.setValue(formatted);
       hideError();
     } catch (error) {
+      console.error("Error loading style:", error);
       showError(`Failed to load style: ${error.message}`);
+    } finally {
+      showLoading(false);
     }
-
-    // Reset select
-    event.target.value = "";
   }
 
   /**
@@ -570,6 +578,488 @@ function initializeApp(v1Input, v2Output) {
     }
 
     return current;
+  }
+
+  /**
+   * Initialize the style browser modal
+   */
+  function initializeStyleModal(v1InputEditor) {
+    // Modal DOM elements
+    const modal = document.getElementById("style-modal");
+    const modalOverlay = document.getElementById("style-modal-overlay");
+    const openModalBtn = document.getElementById("open-style-modal-btn");
+    const closeModalBtn = document.getElementById("close-style-modal-btn");
+    const searchInput = document.getElementById("style-search-input");
+    const sortSelect = document.getElementById("style-sort-select");
+    const tagFiltersContainer = document.getElementById(
+      "tag-filters-container"
+    );
+    const colorFiltersContainer = document.getElementById(
+      "color-filters-container"
+    );
+    const clearFiltersBtn = document.getElementById("clear-filters-btn");
+    const toggleFiltersBtn = document.getElementById("toggle-filters-btn");
+    const toggleFiltersText = document.getElementById("toggle-filters-text");
+    const toggleFiltersIcon = document.getElementById("toggle-filters-icon");
+    const filterControlsSection = document.getElementById(
+      "filter-controls-section"
+    );
+    const resultsGrid = document.getElementById("style-results-grid");
+    const resultsCount = document.getElementById("results-count");
+    const modalLoading = document.getElementById("style-modal-loading");
+    const modalError = document.getElementById("style-modal-error");
+    const modalEmpty = document.getElementById("style-modal-empty");
+    const paginationPrev = document.getElementById("pagination-prev");
+    const paginationNext = document.getElementById("pagination-next");
+    const paginationInfo = document.getElementById("pagination-info");
+    const paginationPageSize = document.getElementById("pagination-page-size");
+
+    // State management
+    let modalState = {
+      searchText: "",
+      sort: "popular",
+      selectedTags: new Set(),
+      selectedColors: new Set(),
+      currentPage: 1,
+      pageSize: 24,
+      totalPages: 1,
+      totalResults: 0,
+      availableTags: [],
+      availableColors: [],
+      isLoading: false,
+      filtersVisible: true,
+    };
+
+    let currentStyles = [];
+    let filterOptionsLoaded = false;
+
+    // Debounced search handler
+    const debouncedSearch = debounce(() => {
+      modalState.currentPage = 1;
+      loadStyles();
+    }, 400);
+
+    // Open modal
+    function openModal() {
+      modal.classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+      if (!filterOptionsLoaded) {
+        loadFilterOptions();
+      }
+      loadStyles();
+      searchInput.focus();
+      // Initialize filter height after a short delay to ensure DOM is ready
+      setTimeout(initializeFiltersHeight, 100);
+    }
+
+    // Close modal
+    function closeModal() {
+      modal.classList.add("hidden");
+      document.body.style.overflow = "";
+    }
+
+    // Load filter options (tags and colors)
+    async function loadFilterOptions() {
+      try {
+        const filterData = await fetchAvailableFilters(3);
+        modalState.availableTags = filterData.tags || [];
+        modalState.availableColors = filterData.colors || [];
+        renderFilterOptions();
+        filterOptionsLoaded = true;
+      } catch (error) {
+        console.warn("Failed to load filter options:", error);
+        // Continue without filters
+        filterOptionsLoaded = true;
+      }
+    }
+
+    // Render filter options
+    function renderFilterOptions() {
+      // Render tag filters
+      const tagLoadingEl = document.getElementById("tag-filters-loading");
+      if (tagLoadingEl) {
+        tagLoadingEl.remove();
+      }
+
+      tagFiltersContainer.innerHTML = "";
+      if (modalState.availableTags.length === 0) {
+        tagFiltersContainer.innerHTML =
+          '<span class="text-white/50 text-sm">No tags available</span>';
+      } else {
+        modalState.availableTags.forEach((tag) => {
+          const checkbox = document.createElement("label");
+          checkbox.className =
+            "flex items-center gap-2 px-3 py-1 rounded-md text-sm cursor-pointer transition-colors bg-white/5 hover:bg-white/10 border border-white/20";
+          checkbox.innerHTML = `
+            <input
+              type="checkbox"
+              value="${tag}"
+              class="rounded border-white/20 text-white focus:ring-white/50"
+              ${modalState.selectedTags.has(tag) ? "checked" : ""}
+            />
+            <span class="text-white/90">${tag}</span>
+          `;
+          checkbox.querySelector("input").addEventListener("change", (e) => {
+            if (e.target.checked) {
+              modalState.selectedTags.add(tag);
+            } else {
+              modalState.selectedTags.delete(tag);
+            }
+            modalState.currentPage = 1;
+            loadStyles();
+          });
+          tagFiltersContainer.appendChild(checkbox);
+        });
+      }
+
+      // Render color filters
+      const colorLoadingEl = document.getElementById("color-filters-loading");
+      if (colorLoadingEl) {
+        colorLoadingEl.remove();
+      }
+
+      colorFiltersContainer.innerHTML = "";
+      if (modalState.availableColors.length === 0) {
+        colorFiltersContainer.innerHTML =
+          '<span class="text-white/50 text-sm">No colors available</span>';
+      } else {
+        modalState.availableColors.forEach((color) => {
+          const checkbox = document.createElement("label");
+          checkbox.className =
+            "flex items-center gap-2 px-3 py-1 rounded-md text-sm cursor-pointer transition-colors bg-white/5 hover:bg-white/10 border border-white/20";
+          checkbox.innerHTML = `
+            <input
+              type="checkbox"
+              value="${color}"
+              class="rounded border-white/20 text-white focus:ring-white/50"
+              ${modalState.selectedColors.has(color) ? "checked" : ""}
+            />
+            <span class="text-white/90">${color}</span>
+          `;
+          checkbox.querySelector("input").addEventListener("change", (e) => {
+            if (e.target.checked) {
+              modalState.selectedColors.add(color);
+            } else {
+              modalState.selectedColors.delete(color);
+            }
+            modalState.currentPage = 1;
+            loadStyles();
+          });
+          colorFiltersContainer.appendChild(checkbox);
+        });
+      }
+
+      // Update filter section height if filters are visible
+      if (modalState.filtersVisible && filterControlsSection) {
+        // Use requestAnimationFrame to ensure DOM is updated
+        requestAnimationFrame(() => {
+          if (
+            filterControlsSection.style.maxHeight !== "none" &&
+            filterControlsSection.style.maxHeight !== "0px"
+          ) {
+            filterControlsSection.style.maxHeight =
+              filterControlsSection.scrollHeight + "px";
+          }
+        });
+      }
+    }
+
+    // Load styles with current filters
+    async function loadStyles() {
+      if (modalState.isLoading) return;
+
+      modalState.isLoading = true;
+      hideError();
+      hideEmpty();
+      showLoading();
+
+      try {
+        const tags = Array.from(modalState.selectedTags);
+        const colors = Array.from(modalState.selectedColors);
+
+        const response = await fetchStyles({
+          sort: modalState.sort,
+          tag: tags.length > 0 ? tags : undefined,
+          color: colors.length > 0 ? colors : undefined,
+          text: modalState.searchText || undefined,
+          page: modalState.currentPage,
+          pageSize: modalState.pageSize,
+        });
+
+        // Handle different response structures
+        currentStyles = Array.isArray(response)
+          ? response
+          : response.results || response.styles || response.data || [];
+
+        // Try to extract pagination info
+        if (response.totalPages) {
+          modalState.totalPages = response.totalPages;
+        } else if (response.total) {
+          modalState.totalPages = Math.ceil(
+            response.total / modalState.pageSize
+          );
+        }
+
+        if (response.total) {
+          modalState.totalResults = response.total;
+        } else if (response.totalResults) {
+          modalState.totalResults = response.totalResults;
+        } else {
+          modalState.totalResults = currentStyles.length;
+        }
+
+        // If we got a full page, estimate total pages
+        if (
+          currentStyles.length === modalState.pageSize &&
+          modalState.totalPages === 1
+        ) {
+          modalState.totalPages = modalState.currentPage + 1;
+        }
+
+        renderStyles();
+        updatePagination();
+        updateResultsCount();
+      } catch (error) {
+        console.error("Failed to load styles:", error);
+        showModalError(`Failed to load styles: ${error.message}`);
+        currentStyles = [];
+        renderStyles();
+      } finally {
+        modalState.isLoading = false;
+        hideLoading();
+      }
+    }
+
+    // Render styles in grid
+    function renderStyles() {
+      resultsGrid.innerHTML = "";
+
+      if (currentStyles.length === 0) {
+        showEmpty();
+        return;
+      }
+
+      currentStyles.forEach((style) => {
+        const card = document.createElement("div");
+        card.className =
+          "bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10 hover:border-white/20 transition-all cursor-pointer hover:bg-white/10";
+        card.innerHTML = `
+          <h3 class="text-white font-semibold mb-2 truncate">${
+            style.name || `Style #${style.id}`
+          }</h3>
+          <p class="text-white/70 text-sm mb-3 line-clamp-2">
+            ${style.description || "No description available"}
+          </p>
+          <div class="flex items-center justify-between">
+            <div class="flex flex-wrap gap-1">
+              ${
+                style.tags && Array.isArray(style.tags)
+                  ? style.tags
+                      .slice(0, 3)
+                      .map(
+                        (tag) =>
+                          `<span class="px-2 py-1 text-xs rounded bg-white/10 text-white/80">${tag}</span>`
+                      )
+                      .join("")
+                  : ""
+              }
+            </div>
+            <button
+              class="px-3 py-1 text-sm rounded bg-white/20 text-white hover:bg-white/30 transition-colors"
+              data-style-id="${style.id}"
+            >
+              Load
+            </button>
+          </div>
+        `;
+
+        const loadBtn = card.querySelector("button");
+        loadBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const styleId = loadBtn.dataset.styleId;
+          closeModal();
+          // Pass the full style object if available, otherwise just the ID
+          await handleStyleSelection(styleId, style);
+        });
+
+        card.addEventListener("click", async () => {
+          closeModal();
+          // Pass the full style object if available, otherwise just the ID
+          await handleStyleSelection(style.id, style);
+        });
+
+        resultsGrid.appendChild(card);
+      });
+    }
+
+    // Update pagination controls
+    function updatePagination() {
+      paginationPrev.disabled = modalState.currentPage === 1;
+      paginationNext.disabled = modalState.currentPage >= modalState.totalPages;
+      paginationInfo.textContent = `Page ${modalState.currentPage} of ${
+        modalState.totalPages || 1
+      }`;
+    }
+
+    // Update results count
+    function updateResultsCount() {
+      if (modalState.totalResults > 0) {
+        resultsCount.textContent = `${modalState.totalResults} style${
+          modalState.totalResults !== 1 ? "s" : ""
+        } found`;
+      } else {
+        resultsCount.textContent = "No styles found";
+      }
+    }
+
+    // Clear all filters
+    function clearFilters() {
+      modalState.searchText = "";
+      modalState.selectedTags.clear();
+      modalState.selectedColors.clear();
+      modalState.currentPage = 1;
+      searchInput.value = "";
+      renderFilterOptions();
+      loadStyles();
+    }
+
+    // Show/hide loading state
+    function showLoading() {
+      modalLoading.classList.remove("hidden");
+      resultsGrid.classList.add("hidden");
+    }
+
+    function hideLoading() {
+      modalLoading.classList.add("hidden");
+      resultsGrid.classList.remove("hidden");
+    }
+
+    // Show/hide error state
+    function showModalError(message) {
+      modalError.textContent = message;
+      modalError.classList.remove("hidden");
+    }
+
+    function hideError() {
+      modalError.classList.add("hidden");
+    }
+
+    // Show/hide empty state
+    function showEmpty() {
+      modalEmpty.classList.remove("hidden");
+      resultsGrid.classList.add("hidden");
+    }
+
+    function hideEmpty() {
+      modalEmpty.classList.add("hidden");
+      resultsGrid.classList.remove("hidden");
+    }
+
+    // Toggle filters visibility
+    function toggleFilters() {
+      modalState.filtersVisible = !modalState.filtersVisible;
+
+      if (modalState.filtersVisible) {
+        // Show filters - get actual height
+        filterControlsSection.style.maxHeight = null; // Reset to get real height
+        const height = filterControlsSection.scrollHeight;
+        filterControlsSection.style.maxHeight = height + "px";
+        filterControlsSection.classList.remove("opacity-0");
+        filterControlsSection.classList.add("opacity-100");
+        toggleFiltersText.textContent = "Hide Filters";
+        toggleFiltersIcon.style.transform = "rotate(0deg)";
+        toggleFiltersBtn.setAttribute("aria-expanded", "true");
+
+        // Reset max-height after transition to allow content to grow
+        setTimeout(() => {
+          if (modalState.filtersVisible) {
+            filterControlsSection.style.maxHeight = "none";
+          }
+        }, 300);
+      } else {
+        // Hide filters
+        const height = filterControlsSection.scrollHeight;
+        filterControlsSection.style.maxHeight = height + "px";
+        // Force reflow to ensure height is set before transition
+        filterControlsSection.offsetHeight;
+        filterControlsSection.style.maxHeight = "0px";
+        filterControlsSection.classList.remove("opacity-100");
+        filterControlsSection.classList.add("opacity-0");
+        toggleFiltersText.textContent = "Show Filters";
+        toggleFiltersIcon.style.transform = "rotate(180deg)";
+        toggleFiltersBtn.setAttribute("aria-expanded", "false");
+      }
+    }
+
+    // Initialize filter section height
+    function initializeFiltersHeight() {
+      if (modalState.filtersVisible) {
+        const height = filterControlsSection.scrollHeight;
+        filterControlsSection.style.maxHeight = height + "px";
+        filterControlsSection.classList.add("opacity-100");
+        // Reset to allow dynamic growth
+        setTimeout(() => {
+          filterControlsSection.style.maxHeight = "none";
+        }, 300);
+      } else {
+        filterControlsSection.style.maxHeight = "0px";
+        filterControlsSection.classList.add("opacity-0");
+      }
+    }
+
+    // Event listeners
+    openModalBtn.addEventListener("click", openModal);
+    closeModalBtn.addEventListener("click", closeModal);
+    modalOverlay.addEventListener("click", closeModal);
+
+    searchInput.addEventListener("input", (e) => {
+      modalState.searchText = e.target.value;
+      debouncedSearch();
+    });
+
+    sortSelect.addEventListener("change", (e) => {
+      modalState.sort = e.target.value;
+      modalState.currentPage = 1;
+      loadStyles();
+    });
+
+    clearFiltersBtn.addEventListener("click", clearFilters);
+    toggleFiltersBtn.addEventListener("click", toggleFilters);
+
+    paginationPrev.addEventListener("click", () => {
+      if (modalState.currentPage > 1) {
+        modalState.currentPage--;
+        loadStyles();
+        resultsGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+
+    paginationNext.addEventListener("click", () => {
+      if (modalState.currentPage < modalState.totalPages) {
+        modalState.currentPage++;
+        loadStyles();
+        resultsGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+
+    paginationPageSize.addEventListener("change", (e) => {
+      modalState.pageSize = parseInt(e.target.value);
+      modalState.currentPage = 1;
+      loadStyles();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener("keydown", (e) => {
+      if (!modal.classList.contains("hidden")) {
+        if (e.key === "Escape") {
+          closeModal();
+        }
+        if (e.key === "Enter" && document.activeElement === searchInput) {
+          e.preventDefault();
+          loadStyles();
+        }
+      }
+    });
   }
 }
 
