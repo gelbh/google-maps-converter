@@ -7,7 +7,7 @@
 
 A web-based tool to convert Google Maps JavaScript API V1 style JSON to V2 CBMS (Custom Base Map Style) format.
 
-🌐 **[Live Demo](https://gelbh.github.io/google-maps-converter/)** | 📦 **[GitHub Repository](https://github.com/gelbh/google-maps-converter)**
+🌐 **[Live Demo](https://gelbh.github.io/google-maps-converter/)**
 
 ## Quick Start
 
