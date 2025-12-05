@@ -221,7 +221,10 @@ function initializeApp(v1Input, v2Output) {
     if (!examplePath) return;
 
     try {
-      const response = await fetch(examplePath);
+      // Prepend base URL for GitHub Pages compatibility
+      const baseUrl = import.meta.env.BASE_URL || "/";
+      const fullPath = `${baseUrl}${examplePath}`.replace(/\/+/g, "/");
+      const response = await fetch(fullPath);
       if (!response.ok) {
         throw new Error(`Failed to load example: ${response.statusText}`);
       }
