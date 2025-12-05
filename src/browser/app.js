@@ -5,6 +5,11 @@
 
 import { convertV1ToV2 } from "../core/converter.js";
 import { validateV2 } from "./validator.js";
+import {
+  fetchStyles,
+  fetchStyleById,
+  parseStyleJson,
+} from "./snazzy-maps-api.js";
 
 // Wait for CodeMirror to be available
 function initializeEditors() {
@@ -97,7 +102,8 @@ const clearBtn = document.getElementById("clear-btn");
 const copyBtn = document.getElementById("copy-btn");
 const downloadBtn = document.getElementById("download-btn");
 const fileInput = document.getElementById("file-input");
-const exampleSelect = document.getElementById("example-select");
+const styleSelect = document.getElementById("style-select");
+const styleSelectLoading = document.getElementById("style-select-loading");
 const loading = document.getElementById("loading");
 const errorDisplay = document.getElementById("error-display");
 const validationStatus = document.getElementById("validation-status");
@@ -111,6 +117,7 @@ const closeValidationErrors = document.getElementById(
 
 function initializeApp(v1Input, v2Output) {
   let currentV2Output = null;
+  let loadedStyles = [];
 
   // Event listeners
   convertBtn.addEventListener("click", handleConvert);
@@ -118,8 +125,11 @@ function initializeApp(v1Input, v2Output) {
   copyBtn.addEventListener("click", handleCopy);
   downloadBtn.addEventListener("click", handleDownload);
   fileInput.addEventListener("change", handleFileUpload);
-  exampleSelect.addEventListener("change", handleExampleLoad);
+  styleSelect.addEventListener("change", handleStyleLoad);
   closeValidationErrors.addEventListener("click", hideValidationErrors);
+
+  // Load styles from Snazzy Maps API on initialization
+  loadStylesFromAPI();
 
   // Make validation status clickable to toggle errors
   validationStatus.addEventListener("click", () => {
@@ -214,30 +224,97 @@ function initializeApp(v1Input, v2Output) {
   }
 
   /**
-   * Handles example loading
+   * Loads styles from Snazzy Maps API and populates the dropdown
    */
-  async function handleExampleLoad(event) {
-    const examplePath = event.target.value;
-    if (!examplePath) return;
+  async function loadStylesFromAPI() {
+    styleSelectLoading.classList.remove("hidden");
+    styleSelect.disabled = true;
 
     try {
-      // Prepend base URL for GitHub Pages compatibility
-      const baseUrl = import.meta.env.BASE_URL || "/";
-      // Ensure baseUrl ends with / and examplePath doesn't start with /
-      const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-      const normalizedPath = examplePath.startsWith("/")
-        ? examplePath.slice(1)
-        : examplePath;
-      const fullPath = `${normalizedBase}${normalizedPath}`;
-      const response = await fetch(fullPath);
-      if (!response.ok) {
-        throw new Error(`Failed to load example: ${response.statusText}`);
+      const response = await fetchStyles({
+        sort: "popular",
+        page: 1,
+        pageSize: 50,
+      });
+
+      // Handle different possible response structures
+      loadedStyles = Array.isArray(response)
+        ? response
+        : response.results || response.styles || response.data || [];
+
+      // Clear existing options except the first one
+      styleSelect.innerHTML =
+        '<option value="" style="background: rgba(15, 23, 42, 0.9); color: white;">Load Snazzy Maps Style...</option>';
+
+      // Populate dropdown with styles
+      loadedStyles.forEach((style) => {
+        const option = document.createElement("option");
+        option.value = style.id;
+        option.textContent = style.name || `Style #${style.id}`;
+        option.setAttribute(
+          "style",
+          "background: rgba(15, 23, 42, 0.9); color: white;"
+        );
+        styleSelect.appendChild(option);
+      });
+
+      if (loadedStyles.length === 0) {
+        styleSelect.innerHTML =
+          '<option value="" style="background: rgba(15, 23, 42, 0.9); color: white;">No styles found</option>';
       }
-      const content = await response.text();
-      v1Input.setValue(content);
+    } catch (error) {
+      console.error("Failed to load styles:", error);
+      styleSelect.innerHTML =
+        '<option value="" style="background: rgba(15, 23, 42, 0.9); color: white;">Failed to load styles</option>';
+      showError(`Failed to load styles from Snazzy Maps: ${error.message}`);
+    } finally {
+      styleSelectLoading.classList.add("hidden");
+      styleSelect.disabled = false;
+    }
+  }
+
+  /**
+   * Handles style loading from Snazzy Maps API
+   */
+  async function handleStyleLoad(event) {
+    const styleId = event.target.value;
+    if (!styleId) return;
+
+    try {
+      let selectedStyle = loadedStyles.find(
+        (s) => s.id === styleId || s.id?.toString() === styleId
+      );
+
+      // If style not found in loaded list or doesn't have JSON, fetch it individually
+      if (!selectedStyle || !selectedStyle.json) {
+        styleSelectLoading.classList.remove("hidden");
+        styleSelect.disabled = true;
+
+        try {
+          selectedStyle = await fetchStyleById(styleId);
+        } finally {
+          styleSelectLoading.classList.add("hidden");
+          styleSelect.disabled = false;
+        }
+      }
+
+      if (!selectedStyle) {
+        throw new Error("Selected style not found");
+      }
+
+      // Extract the JSON field from the style (it's a string containing V1 style JSON)
+      const v1Json = parseStyleJson(selectedStyle);
+
+      if (!v1Json) {
+        throw new Error("Style does not contain valid JSON");
+      }
+
+      // Format and set the V1 JSON in the editor
+      const formatted = JSON.stringify(v1Json, null, 2);
+      v1Input.setValue(formatted);
       hideError();
     } catch (error) {
-      showError(`Failed to load example: ${error.message}`);
+      showError(`Failed to load style: ${error.message}`);
     }
 
     // Reset select

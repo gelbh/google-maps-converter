@@ -1,50 +1,120 @@
 #!/usr/bin/env node
 /**
  * CLI test suite for V1 to V2 conversion validation
- * Reads all V1 example files, converts them, validates against schema, and outputs TAP format
+ * Fetches styles from Snazzy Maps API, converts them, validates against schema, and outputs TAP format
  */
 
-import { readdir, readFile } from "fs/promises";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+// Load environment variables from .env file if available
+// Environment variables can also be set directly via the system
+import dotenv from "dotenv";
+dotenv.config();
+
 import { convertV1ToV2 } from "../src/node/converter-node.js";
 import {
   validateV2,
   formatValidationErrors,
 } from "../src/node/validator-node.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const projectRoot = join(__dirname, "..");
-const examplesDir = join(projectRoot, "public", "examples", "v1");
+const API_BASE_URL = "https://snazzymaps.com/explore.json";
 
 /**
- * Reads all JSON files from the examples/v1 directory
- * @returns {Promise<string[]>} Array of file paths
+ * Gets the API key from environment variables
+ * Checks both SNAZZY_MAPS_API_KEY and VITE_SNAZZY_MAPS_API_KEY
+ * (VITE_ prefix is used by browser code, but Node.js can also read it)
+ * @returns {string} API key
+ * @throws {Error} If API key is not set
  */
-async function getV1ExampleFiles() {
+function getApiKey() {
+  const apiKey =
+    process.env.SNAZZY_MAPS_API_KEY || process.env.VITE_SNAZZY_MAPS_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "SNAZZY_MAPS_API_KEY or VITE_SNAZZY_MAPS_API_KEY is not set. Please set it in your .env file or as an environment variable."
+    );
+  }
+  return apiKey;
+}
+
+/**
+ * Fetches styles from Snazzy Maps API
+ * @param {Object} options - Query parameters
+ * @returns {Promise<Array>} Array of style objects
+ */
+async function fetchStylesFromAPI(options = {}) {
+  const { sort = "popular", page = 1, pageSize = 12 } = options;
+
+  const params = new URLSearchParams();
+  // API key is required - use query parameter (consistent with browser code)
+  params.append("key", getApiKey());
+  if (sort) params.append("sort", sort);
+  params.append("page", page.toString());
+  params.append("pageSize", pageSize.toString());
+
+  const url = `${API_BASE_URL}?${params.toString()}`;
+
   try {
-    const files = await readdir(examplesDir);
-    return files
-      .filter((file) => file.endsWith(".json"))
-      .map((file) => join(examplesDir, file));
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(
+        `Snazzy Maps API error: ${response.status} ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
+
+    // Handle different possible response structures
+    return Array.isArray(data)
+      ? data
+      : data.results || data.styles || data.data || [];
   } catch (error) {
-    console.error(`Error reading examples directory: ${error.message}`);
+    throw new Error(
+      `Failed to fetch styles from Snazzy Maps: ${error.message}`
+    );
+  }
+}
+
+/**
+ * Fetches a list of popular styles from Snazzy Maps API for testing
+ * @returns {Promise<Array>} Array of style objects with id and name
+ */
+async function getV1ExampleStyles() {
+  try {
+    const styles = await fetchStylesFromAPI({
+      sort: "popular",
+      page: 1,
+      pageSize: 10, // Test with first 10 popular styles
+    });
+
+    if (styles.length === 0) {
+      throw new Error("No styles found from Snazzy Maps API");
+    }
+
+    return styles;
+  } catch (error) {
+    console.error(`Error fetching styles from API: ${error.message}`);
     process.exit(1);
   }
 }
 
 /**
- * Loads and parses a JSON file
- * @param {string} filePath - Path to JSON file
- * @returns {Promise<Object>} Parsed JSON object
+ * Loads and parses V1 JSON from a style object
+ * @param {Object} style - Style object from API with json field
+ * @returns {Promise<Object>} Parsed V1 JSON object
  */
-async function loadJsonFile(filePath) {
+async function loadV1JsonFromStyle(style) {
   try {
-    const content = await readFile(filePath, "utf8");
-    return JSON.parse(content);
+    if (!style || !style.json) {
+      throw new Error("Style does not contain JSON data");
+    }
+
+    // The json field is a string containing the V1 style JSON
+    const v1Json =
+      typeof style.json === "string" ? JSON.parse(style.json) : style.json;
+
+    return v1Json;
   } catch (error) {
-    throw new Error(`Failed to load ${filePath}: ${error.message}`);
+    throw new Error(`Failed to load V1 JSON from style: ${error.message}`);
   }
 }
 
@@ -140,38 +210,43 @@ function formatErrorYaml(message, errors = null, v2Json = null) {
  * Main test execution
  */
 async function runTests() {
-  const files = await getV1ExampleFiles();
+  const styles = await getV1ExampleStyles();
 
-  if (files.length === 0) {
-    console.error("No V1 example files found in public/examples/v1/");
+  if (styles.length === 0) {
+    console.error("No styles found from Snazzy Maps API");
     process.exit(1);
   }
 
   console.log("TAP version 13");
-  console.log(`1..${files.length}`);
+  console.log(`1..${styles.length}`);
 
   let passCount = 0;
   let failCount = 0;
   const failures = [];
 
-  for (let i = 0; i < files.length; i++) {
-    const filePath = files[i];
-    const fileName = filePath.split(/[/\\]/).pop();
+  for (let i = 0; i < styles.length; i++) {
+    const style = styles[i];
+    const styleName = style.name || `Style #${style.id}`;
+    const styleId = style.id;
     const testNumber = i + 1;
 
     try {
-      // Load V1 JSON
-      const v1Json = await loadJsonFile(filePath);
+      // Load V1 JSON from style
+      const v1Json = await loadV1JsonFromStyle(style);
 
       // Convert to V2
       let v2Json;
       try {
         v2Json = convertV1ToV2(v1Json);
       } catch (error) {
-        console.log(`not ok ${testNumber} - ${fileName} (conversion failed)`);
+        console.log(`not ok ${testNumber} - ${styleName} (conversion failed)`);
         console.log(formatErrorYaml(`Conversion error: ${error.message}`));
         failCount++;
-        failures.push({ file: fileName, error: error.message });
+        failures.push({
+          style: styleName,
+          styleId: styleId,
+          error: error.message,
+        });
         continue;
       }
 
@@ -179,31 +254,36 @@ async function runTests() {
       const validation = await validateV2(v2Json);
 
       if (validation.valid) {
-        console.log(`ok ${testNumber} - ${fileName}`);
+        console.log(`ok ${testNumber} - ${styleName}`);
         passCount++;
       } else {
-        console.log(`not ok ${testNumber} - ${fileName} (validation failed)`);
+        console.log(`not ok ${testNumber} - ${styleName} (validation failed)`);
         console.log(
           formatErrorYaml("Validation failed", validation.errors, v2Json)
         );
         failCount++;
         failures.push({
-          file: fileName,
+          style: styleName,
+          styleId: styleId,
           errors: validation.errors,
           v2Json: v2Json,
         });
       }
     } catch (error) {
-      console.log(`not ok ${testNumber} - ${fileName} (error)`);
+      console.log(`not ok ${testNumber} - ${styleName} (error)`);
       console.log(formatErrorYaml(`Test error: ${error.message}`));
       failCount++;
-      failures.push({ file: fileName, error: error.message });
+      failures.push({
+        style: styleName,
+        styleId: styleId,
+        error: error.message,
+      });
     }
   }
 
   // Summary
   console.log("");
-  console.log(`# tests ${files.length}`);
+  console.log(`# tests ${styles.length}`);
   console.log(`# pass  ${passCount}`);
   console.log(`# fail  ${failCount}`);
 
@@ -211,7 +291,8 @@ async function runTests() {
     console.log("");
     console.log("# Failed tests:");
     for (const failure of failures) {
-      console.log(`#   - ${failure.file}`);
+      const styleName = failure.style || `Style #${failure.styleId}`;
+      console.log(`#   - ${styleName} (ID: ${failure.styleId})`);
       if (failure.error) {
         console.log(`#     Error: ${failure.error}`);
       }
