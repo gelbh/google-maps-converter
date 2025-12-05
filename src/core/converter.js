@@ -216,9 +216,13 @@ function processV1Rule(v1Rule, v2StylesMap) {
 
           // Only set if property is valid for this feature
           if (isValidGeometryProperty(id, targetProperty)) {
-            willSetProperty = true;
-            propertyToSet = targetProperty;
-            valueToSet = extractColor(mergedStyler);
+            const color = extractColor(mergedStyler);
+            // Only set color if one was actually specified (not null)
+            if (color !== null) {
+              willSetProperty = true;
+              propertyToSet = targetProperty;
+              valueToSet = color;
+            }
           }
         } else if (property === "strokeWeight") {
           if (isValidGeometryProperty(id, "strokeWeight")) {
@@ -246,9 +250,12 @@ function processV1Rule(v1Rule, v2StylesMap) {
         ) {
           // Only set if property is valid for this feature
           if (isValidLabelProperty(id, property)) {
-            if (!style.label) style.label = {};
             const color = extractColor(mergedStyler);
-            style.label[property] = color;
+            // Only set color if one was actually specified (not null)
+            if (color !== null) {
+              if (!style.label) style.label = {};
+              style.label[property] = color;
+            }
           }
         }
       }
@@ -256,7 +263,8 @@ function processV1Rule(v1Rule, v2StylesMap) {
   } else if (elementType === "all" || !elementType) {
     // Handle 'all' elementType - apply color to geometry.fillColor as default
     const color = extractColor(mergedStyler);
-    if (color && color !== "#000000") {
+    // Only set color if one was actually specified (not null)
+    if (color !== null) {
       for (const id of targetIds) {
         // Only apply to geometry if feature supports it
         if (!supportsGeometry(id)) {
