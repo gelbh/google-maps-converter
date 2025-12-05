@@ -3,6 +3,8 @@
  * Validates converted V2 JSON against cbms-json-schema.json
  */
 
+import schemaData from "../schema/cbms-json-schema.json";
+
 let ajvInstance = null;
 let schema = null;
 
@@ -85,14 +87,8 @@ async function initializeValidator() {
   // Initialize AJV
   ajvInstance = new AjvConstructor({ allErrors: true, verbose: true });
 
-  // Load schema from new location
-  try {
-    const response = await fetch("/src/schema/cbms-json-schema.json");
-    schema = await response.json();
-  } catch (error) {
-    console.error("Failed to load schema:", error);
-    throw new Error("Failed to load validation schema");
-  }
+  // Use imported schema (Vite handles JSON imports)
+  schema = schemaData;
 }
 
 /**
