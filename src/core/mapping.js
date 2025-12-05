@@ -5,18 +5,17 @@
 
 /**
  * Maps V1 featureType to V2 id
+ * Only includes feature IDs that exist in the schema
  * @type {Object.<string, string|string[]>}
  */
 const featureTypeMap = {
   poi: "pointOfInterest",
-  "poi.attraction": "pointOfInterest.attraction",
-  "poi.business": "pointOfInterest.business",
-  "poi.government": "pointOfInterest.government",
-  "poi.medical": "pointOfInterest.medical",
   "poi.park": "pointOfInterest.recreation.park",
-  "poi.place_of_worship": "pointOfInterest.placeOfWorship",
-  "poi.school": "pointOfInterest.school",
-  "poi.sports_complex": "pointOfInterest.sportsComplex",
+  "poi.sports_complex": "pointOfInterest.recreation.sportsComplex",
+  "poi.place_of_worship": "pointOfInterest.other.placeOfWorship",
+  "poi.school": "pointOfInterest.other.school",
+  "poi.government": "pointOfInterest.other.government",
+  "poi.medical": "pointOfInterest.emergency.hospital",
   administrative: "political",
   "administrative.country": "political.countryOrRegion",
   "administrative.locality": "political.city",
@@ -28,15 +27,12 @@ const featureTypeMap = {
   "road.arterial": "infrastructure.roadNetwork.road.arterial",
   "road.local": "infrastructure.roadNetwork.road.local",
   landscape: "natural.land",
-  "landscape.man_made": "natural.land.manMade",
-  "landscape.natural": "natural.land.natural",
   water: "natural.water",
-  transit: "infrastructure.transit",
-  "transit.line": "infrastructure.transit.line",
-  "transit.station": "infrastructure.transit.station",
-  "transit.station.airport": "infrastructure.transit.station.airport",
-  "transit.station.bus": "infrastructure.transit.station.bus",
-  "transit.station.rail": "infrastructure.transit.station.rail",
+  transit: "infrastructure.transitStation",
+  "transit.station": "infrastructure.transitStation",
+  "transit.station.airport": "pointOfInterest.transit.airport",
+  "transit.station.bus": "infrastructure.transitStation.busStation",
+  "transit.station.rail": "infrastructure.transitStation.railStation",
 };
 
 /**
@@ -69,7 +65,7 @@ const visibilityMap = {
  * @param {string} featureType - V1 featureType
  * @returns {string|string[]|null} V2 id(s) or null if not mapped
  */
-function getV2Id(featureType) {
+export function getV2Id(featureType) {
   if (!featureType || featureType === "all") {
     return null; // 'all' needs special handling
   }
@@ -81,7 +77,7 @@ function getV2Id(featureType) {
  * @param {string} elementType - V1 elementType
  * @returns {string|null} V2 property path or null if not mapped
  */
-function getV2PropertyPath(elementType) {
+export function getV2PropertyPath(elementType) {
   if (!elementType || elementType === "all") {
     return null; // 'all' needs special handling
   }
@@ -93,7 +89,7 @@ function getV2PropertyPath(elementType) {
  * @param {string} visibility - V1 visibility value
  * @returns {boolean|null} V2 visibility boolean or null if not mapped
  */
-function getV2Visibility(visibility) {
+export function getV2Visibility(visibility) {
   if (visibility === undefined || visibility === null) {
     return null;
   }
@@ -107,7 +103,7 @@ function getV2Visibility(visibility) {
  * Gets all V2 ids that should be affected by 'all' featureType
  * @returns {string[]} Array of all V2 ids
  */
-function getAllV2Ids() {
+export function getAllV2Ids() {
   return Object.values(featureTypeMap).filter((id) => typeof id === "string");
 }
 
@@ -116,7 +112,7 @@ function getAllV2Ids() {
  * @param {string} featureType - V1 featureType
  * @returns {boolean} True if mapped
  */
-function isFeatureTypeMapped(featureType) {
+export function isFeatureTypeMapped(featureType) {
   return featureType !== "all" && featureTypeMap.hasOwnProperty(featureType);
 }
 
@@ -125,6 +121,6 @@ function isFeatureTypeMapped(featureType) {
  * @param {string} elementType - V1 elementType
  * @returns {boolean} True if mapped
  */
-function isElementTypeMapped(elementType) {
+export function isElementTypeMapped(elementType) {
   return elementType !== "all" && elementTypeMap.hasOwnProperty(elementType);
 }

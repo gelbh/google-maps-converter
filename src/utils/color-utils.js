@@ -8,7 +8,7 @@
  * @param {string} hex - Hex color string (#RRGGBB)
  * @returns {{h: number, s: number, l: number}} HSL values (0-360 for h, 0-100 for s and l)
  */
-function hexToHsl(hex) {
+export function hexToHsl(hex) {
   const normalized = normalizeHex(hex);
   const r = parseInt(normalized.slice(1, 3), 16) / 255;
   const g = parseInt(normalized.slice(3, 5), 16) / 255;
@@ -52,7 +52,7 @@ function hexToHsl(hex) {
  * @param {number} l - Lightness (0-100)
  * @returns {string} Hex color string (#RRGGBB)
  */
-function hslToHex(h, s, l) {
+export function hslToHex(h, s, l) {
   h = h / 360;
   s = s / 100;
   l = l / 100;
@@ -93,7 +93,7 @@ function hslToHex(h, s, l) {
  * @param {number|string} saturation - Saturation adjustment (-100 to 100)
  * @returns {string} Adjusted hex color (#RRGGBB)
  */
-function applyHslAdjustments(baseColor, lightness, saturation) {
+export function applyHslAdjustments(baseColor, lightness, saturation) {
   const normalized = normalizeHex(baseColor);
   let { h, s, l } = hexToHsl(normalized);
 
@@ -121,7 +121,7 @@ function applyHslAdjustments(baseColor, lightness, saturation) {
  * @param {string} hex - Hex color string (may be 3 or 6 digits)
  * @returns {string} Normalized 6-digit hex color (#RRGGBB)
  */
-function normalizeHex(hex) {
+export function normalizeHex(hex) {
   if (!hex || typeof hex !== "string") {
     return "#000000";
   }
@@ -160,7 +160,7 @@ function normalizeHex(hex) {
  * @param {string} defaultColor - Default color if none specified
  * @returns {string} Hex color string (#RRGGBB)
  */
-function extractColor(styler, defaultColor = "#000000") {
+export function extractColor(styler, defaultColor = "#000000") {
   let color = styler.color || defaultColor;
   color = normalizeHex(color);
 

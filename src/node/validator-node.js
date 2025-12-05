@@ -1,10 +1,19 @@
 /**
- * V2 schema validation using AJV
- * Validates converted V2 JSON against cbms-json-schema.json
+ * Node.js-compatible validator module
+ * Uses AJV npm package to validate V2 JSON against schema
  */
+
+import Ajv from "ajv";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 let ajvInstance = null;
 let schema = null;
+let validate = null;
 
 /**
  * Initializes AJV and loads the schema
@@ -15,42 +24,18 @@ async function initializeValidator() {
     return; // Already initialized
   }
 
-  // Load AJV from CDN if not available
-  if (typeof Ajv === "undefined") {
-    await loadScript("https://cdn.jsdelivr.net/npm/ajv@8.12.0/dist/ajv.min.js");
-  }
-
   // Initialize AJV
   ajvInstance = new Ajv({ allErrors: true, verbose: true });
 
-  // Load schema
+  // Load schema from new location
   try {
-    const response = await fetch("cbms-json-schema.json");
-    schema = await response.json();
+    const schemaPath = join(__dirname, "..", "schema", "cbms-json-schema.json");
+    const schemaText = readFileSync(schemaPath, "utf8");
+    schema = JSON.parse(schemaText);
+    validate = ajvInstance.compile(schema);
   } catch (error) {
-    console.error("Failed to load schema:", error);
-    throw new Error("Failed to load validation schema");
+    throw new Error(`Failed to load validation schema: ${error.message}`);
   }
-}
-
-/**
- * Loads a script dynamically
- * @param {string} src - Script source URL
- * @returns {Promise<void>}
- */
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) {
-      resolve();
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-    document.head.appendChild(script);
-  });
 }
 
 /**
@@ -58,7 +43,7 @@ function loadScript(src) {
  * @param {Object} v2Json - V2 style object to validate
  * @returns {{valid: boolean, errors: Array|null}} Validation result
  */
-async function validateV2(v2Json) {
+export async function validateV2(v2Json) {
   try {
     await initializeValidator();
   } catch (error) {
@@ -68,7 +53,6 @@ async function validateV2(v2Json) {
     };
   }
 
-  const validate = ajvInstance.compile(schema);
   const valid = validate(v2Json);
 
   if (valid) {
@@ -86,7 +70,7 @@ async function validateV2(v2Json) {
  * @param {Array} errors - AJV validation errors
  * @returns {string} Formatted error message
  */
-function formatValidationErrors(errors) {
+export function formatValidationErrors(errors) {
   if (!errors || errors.length === 0) {
     return "Unknown validation error";
   }
