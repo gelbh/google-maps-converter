@@ -139,21 +139,3 @@ export async function validateV2(v2Json) {
   }
 }
 
-/**
- * Formats validation errors for display
- * @param {Array} errors - AJV validation errors
- * @returns {string} Formatted error message
- */
-export function formatValidationErrors(errors) {
-  if (!errors || errors.length === 0) {
-    return "Unknown validation error";
-  }
-
-  return errors
-    .map((error) => {
-      const path = error.instancePath || error.schemaPath || "";
-      const message = error.message || "Validation error";
-      return `${path ? path + ": " : ""}${message}`;
-    })
-    .join("\n");
-}

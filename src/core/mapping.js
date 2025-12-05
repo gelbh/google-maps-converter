@@ -107,20 +107,3 @@ export function getAllV2Ids() {
   return Object.values(featureTypeMap).filter((id) => typeof id === "string");
 }
 
-/**
- * Checks if a V1 featureType is mapped to V2
- * @param {string} featureType - V1 featureType
- * @returns {boolean} True if mapped
- */
-export function isFeatureTypeMapped(featureType) {
-  return featureType !== "all" && featureTypeMap.hasOwnProperty(featureType);
-}
-
-/**
- * Checks if a V1 elementType is mapped to V2
- * @param {string} elementType - V1 elementType
- * @returns {boolean} True if mapped
- */
-export function isElementTypeMapped(elementType) {
-  return elementType !== "all" && elementTypeMap.hasOwnProperty(elementType);
-}
