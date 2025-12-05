@@ -84,11 +84,51 @@ function convertWeight(weight) {
 }
 
 /**
+ * Gets all parent feature IDs for a given feature ID
+ * For example: "infrastructure.roadNetwork.road.highway" returns
+ * ["infrastructure.roadNetwork.road", "infrastructure.roadNetwork", "infrastructure"]
+ * @param {string} featureId - V2 feature ID
+ * @returns {string[]} Array of parent feature IDs (most specific first)
+ */
+function getParentFeatureIds(featureId) {
+  const parents = [];
+  const parts = featureId.split(".");
+  for (let i = parts.length - 1; i > 0; i--) {
+    parents.push(parts.slice(0, i).join("."));
+  }
+  return parents;
+}
+
+/**
+ * Gets HSL adjustments for a feature ID, checking parent features
+ * @param {string} featureId - V2 feature ID
+ * @param {Map} hslAdjustmentsMap - Map of feature ID to HSL adjustments
+ * @returns {Object|null} HSL adjustments object {saturation?: number, lightness?: number} or null
+ */
+function getHslAdjustments(featureId, hslAdjustmentsMap) {
+  // Check exact match first
+  if (hslAdjustmentsMap.has(featureId)) {
+    return hslAdjustmentsMap.get(featureId);
+  }
+
+  // Check parent features
+  const parents = getParentFeatureIds(featureId);
+  for (const parentId of parents) {
+    if (hslAdjustmentsMap.has(parentId)) {
+      return hslAdjustmentsMap.get(parentId);
+    }
+  }
+
+  return null;
+}
+
+/**
  * Processes a single V1 style rule and converts it to V2 style objects
  * @param {Object} v1Rule - V1 style rule
  * @param {Map} v2StylesMap - Map to accumulate V2 styles
+ * @param {Map} hslAdjustmentsMap - Map to track HSL adjustments per feature type
  */
-function processV1Rule(v1Rule, v2StylesMap) {
+function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
   const { featureType, elementType, stylers } = v1Rule;
 
   if (!stylers || !Array.isArray(stylers)) {
@@ -114,6 +154,53 @@ function processV1Rule(v1Rule, v2StylesMap) {
   const mergedStyler = {};
   for (const styler of stylers) {
     Object.assign(mergedStyler, styler);
+  }
+
+  // Track HSL adjustments from general rules (elementType: "all" or no elementType)
+  // that have saturation/lightness but no explicit color
+  const isGeneralRule = elementType === "all" || !elementType;
+  const hasExplicitColor =
+    mergedStyler.color !== undefined && mergedStyler.color !== null;
+  const hasHslAdjustments =
+    mergedStyler.saturation !== undefined ||
+    mergedStyler.lightness !== undefined;
+
+  if (isGeneralRule && !hasExplicitColor && hasHslAdjustments) {
+    // Store adjustments for all target feature types
+    const adjustments = {};
+    if (mergedStyler.saturation !== undefined) {
+      adjustments.saturation = parseFloat(mergedStyler.saturation);
+    }
+    if (mergedStyler.lightness !== undefined) {
+      adjustments.lightness = parseFloat(mergedStyler.lightness);
+    }
+
+    // Only store if adjustments are valid numbers
+    if (
+      (adjustments.saturation === undefined ||
+        !isNaN(adjustments.saturation)) &&
+      (adjustments.lightness === undefined || !isNaN(adjustments.lightness))
+    ) {
+      for (const id of targetIds) {
+        // Store adjustments for this feature type
+        // If adjustments already exist, merge them (new values replace old ones for the same property)
+        if (hslAdjustmentsMap.has(id)) {
+          const existing = hslAdjustmentsMap.get(id);
+          hslAdjustmentsMap.set(id, {
+            saturation:
+              adjustments.saturation !== undefined
+                ? adjustments.saturation
+                : existing.saturation,
+            lightness:
+              adjustments.lightness !== undefined
+                ? adjustments.lightness
+                : existing.lightness,
+          });
+        } else {
+          hslAdjustmentsMap.set(id, adjustments);
+        }
+      }
+    }
   }
 
   // Handle visibility
@@ -216,7 +303,16 @@ function processV1Rule(v1Rule, v2StylesMap) {
 
           // Only set if property is valid for this feature
           if (isValidGeometryProperty(id, targetProperty)) {
-            const color = extractColor(mergedStyler);
+            // Get any stored HSL adjustments for this feature type
+            const externalAdjustments = getHslAdjustments(
+              id,
+              hslAdjustmentsMap
+            );
+            const color = extractColor(
+              mergedStyler,
+              "#000000",
+              externalAdjustments
+            );
             // Only set color if one was actually specified (not null)
             if (color !== null) {
               willSetProperty = true;
@@ -250,7 +346,16 @@ function processV1Rule(v1Rule, v2StylesMap) {
         ) {
           // Only set if property is valid for this feature
           if (isValidLabelProperty(id, property)) {
-            const color = extractColor(mergedStyler);
+            // Get any stored HSL adjustments for this feature type
+            const externalAdjustments = getHslAdjustments(
+              id,
+              hslAdjustmentsMap
+            );
+            const color = extractColor(
+              mergedStyler,
+              "#000000",
+              externalAdjustments
+            );
             // Only set color if one was actually specified (not null)
             if (color !== null) {
               if (!style.label) style.label = {};
@@ -262,15 +367,19 @@ function processV1Rule(v1Rule, v2StylesMap) {
     }
   } else if (elementType === "all" || !elementType) {
     // Handle 'all' elementType - apply color to geometry.fillColor as default
-    const color = extractColor(mergedStyler);
-    // Only set color if one was actually specified (not null)
-    if (color !== null) {
-      for (const id of targetIds) {
-        // Only apply to geometry if feature supports it
-        if (!supportsGeometry(id)) {
-          continue;
-        }
+    // Note: This path is for rules with explicit colors, not just HSL adjustments
+    // HSL adjustments without colors are handled earlier in the function
+    for (const id of targetIds) {
+      // Only apply to geometry if feature supports it
+      if (!supportsGeometry(id)) {
+        continue;
+      }
 
+      // Get any stored HSL adjustments for this feature type
+      const externalAdjustments = getHslAdjustments(id, hslAdjustmentsMap);
+      const color = extractColor(mergedStyler, "#000000", externalAdjustments);
+      // Only set color if one was actually specified (not null)
+      if (color !== null) {
         // Map to appropriate property based on feature
         const targetProperty = mapGeometryColor(id);
         if (isValidGeometryProperty(id, targetProperty)) {
@@ -388,9 +497,10 @@ export function convertV1ToV2(v1Input) {
 
   // Process all V1 rules
   const v2StylesMap = new Map();
+  const hslAdjustmentsMap = new Map(); // Track HSL adjustments per feature type
 
   for (const rule of v1Styles) {
-    processV1Rule(rule, v2StylesMap);
+    processV1Rule(rule, v2StylesMap, hslAdjustmentsMap);
   }
 
   // Convert map to array and clean up

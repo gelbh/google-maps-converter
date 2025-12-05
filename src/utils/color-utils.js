@@ -158,13 +158,18 @@ export function normalizeHex(hex) {
  * Extracts color from V1 styler object, applying HSL adjustments if present
  * @param {Object} styler - V1 styler object
  * @param {string} defaultColor - Default color if none specified (deprecated, no longer used)
+ * @param {Object} externalAdjustments - Optional external HSL adjustments to apply {saturation?: number, lightness?: number}
  * @returns {string|null} Hex color string (#RRGGBB) or null if no color specified and no HSL adjustments
  */
-export function extractColor(styler, defaultColor = "#000000") {
+export function extractColor(
+  styler,
+  defaultColor = "#000000",
+  externalAdjustments = null
+) {
   // Check if a color is explicitly provided
   const hasExplicitColor = styler.color !== undefined && styler.color !== null;
 
-  // Check if HSL adjustments are provided
+  // Check if HSL adjustments are provided in styler
   const hasHslAdjustments =
     styler.lightness !== undefined || styler.saturation !== undefined;
 
@@ -182,9 +187,22 @@ export function extractColor(styler, defaultColor = "#000000") {
   // We have an explicit color - normalize it
   let color = normalizeHex(styler.color);
 
-  // Apply HSL adjustments if present
+  // Apply HSL adjustments from styler if present
   if (hasHslAdjustments) {
     color = applyHslAdjustments(color, styler.lightness, styler.saturation);
+  }
+
+  // Apply external adjustments if provided (these are from parent/general rules)
+  if (
+    externalAdjustments &&
+    (externalAdjustments.saturation !== undefined ||
+      externalAdjustments.lightness !== undefined)
+  ) {
+    color = applyHslAdjustments(
+      color,
+      externalAdjustments.lightness,
+      externalAdjustments.saturation
+    );
   }
 
   return color;
