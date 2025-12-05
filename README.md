@@ -5,29 +5,13 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)
 ![npm](https://img.shields.io/badge/npm-%3E%3D9.0.0-red.svg)
 
-A web-based tool to convert Google Maps JavaScript API V1 style JSON to V2 CBMS (Custom Base Map Style) format.
+Convert your Google Maps JavaScript API V1 style JSON to V2 CBMS (Custom Base Map Style) format.
 
-🌐 **[Live Demo](https://gelbh.github.io/google-maps-converter/)**
+🌐 **[Try it now →](https://gelbh.github.io/google-maps-converter/)**
 
-## Quick Start
-
-```bash
-npm install
-npm run dev
-```
-
-## Usage
+## How to Use
 
 1. Paste your V1 JSON or upload a file
-2. Click "Convert" to generate V2 output
-3. Copy or download the converted JSON
-
-## CLI Test Suite
-
-```bash
-npm test
-```
-
-## License
-
-ISC
+2. Or select a style from Snazzy Maps using the dropdown
+3. Click "Convert" to generate V2 output
+4. Copy or download the converted JSON
