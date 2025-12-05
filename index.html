@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Google Maps V1 to V2 Style Converter</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css"
+    />
+    <script type="module" crossorigin src="/google-maps-converter/assets/index-BVtidjJY.js"></script>
+    <link rel="stylesheet" crossorigin href="/google-maps-converter/assets/index-B3cotuO4.css">
+  </head>
+  <body
+    class="min-h-screen bg-slate-900 text-foreground p-4"
+  >
+    <div
+      class="max-w-[1400px] mx-auto bg-black/20 backdrop-blur-lg rounded-lg shadow-xl border border-white/10 overflow-hidden"
+    >
+      <header
+        class="bg-black/30 backdrop-blur-md text-white p-4 text-center border-b border-white/10"
+      >
+        <h1 class="text-3xl font-semibold mb-2">
+          Google Maps V1 to V2 Style Converter
+        </h1>
+        <p class="text-base opacity-95 max-w-3xl mx-auto">
+          Convert Google Maps JavaScript API V1 style JSON to V2 CBMS format.
+          Paste your V1 JSON or load an example to get started.
+        </p>
+      </header>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 pb-2">
+        <div class="flex flex-col bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+          <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
+            <h2 class="text-xl font-semibold text-white">V1 Input</h2>
+            <div class="flex gap-2 flex-wrap items-center">
+              <label
+                for="file-input"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors inline-block"
+                >Upload File</label
+              >
+              <input
+                type="file"
+                id="file-input"
+                accept=".json"
+                class="hidden"
+              />
+              <select
+                id="example-select"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors appearance-none bg-[url('data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'white\' d=\'M6 9L1 4h10z\'/%3E%3C/svg%3E')] bg-no-repeat bg-[right_0.75rem_center] pr-10 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2"
+                style="color: white;"
+              >
+                <option value="" style="background: rgba(15, 23, 42, 0.9); color: white;">Load Example...</option>
+                <option value="examples/v1/wy.json" style="background: rgba(15, 23, 42, 0.9); color: white;">Wyoming (wy.json)</option>
+                <option value="examples/v1/multi-brand-network.json" style="background: rgba(15, 23, 42, 0.9); color: white;">
+                  Multi Brand Network
+                </option>
+                <option value="examples/v1/assassins_creed_iv.json" style="background: rgba(15, 23, 42, 0.9); color: white;">
+                  Assassin's Creed IV
+                </option>
+              </select>
+              <button
+                id="clear-btn"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div
+            id="v1-input-wrapper"
+            class="w-full h-[250px] border-2 border-white/10 rounded-md overflow-hidden bg-black/20 backdrop-blur-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+          >
+            <textarea
+              id="v1-input"
+              placeholder="Paste your V1 style JSON here..."
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="flex flex-col bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+          <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
+            <h2 class="text-xl font-semibold text-white">V2 Output</h2>
+            <div class="flex gap-2 flex-wrap items-center">
+              <span
+                id="validation-status"
+                class="px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80"
+              ></span>
+              <button
+                id="copy-btn"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2"
+              >
+                Copy to Clipboard
+              </button>
+              <button
+                id="download-btn"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2"
+              >
+                Download JSON
+              </button>
+            </div>
+          </div>
+          <div
+            id="v2-output-wrapper"
+            class="w-full h-[250px] border-2 border-white/10 rounded-md overflow-hidden bg-black/20 backdrop-blur-sm"
+          >
+            <textarea
+              id="v2-output"
+              readonly
+              placeholder="V2 output will appear here after conversion..."
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-3 text-center border-t border-white/10 bg-black/10 backdrop-blur-sm">
+        <button
+          id="convert-btn"
+          class="px-8 py-3 rounded-md text-base font-semibold cursor-pointer bg-white/30 text-white hover:bg-white/40 backdrop-blur-md border-2 border-white/30 hover:border-white/50 transition-all hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+        >
+          Convert
+        </button>
+        <div id="loading" class="hidden mt-4 text-muted-foreground italic">
+          <span>Processing...</span>
+        </div>
+      </div>
+
+      <div
+        id="error-display"
+        class="hidden m-4 p-4 bg-red-900/30 backdrop-blur-sm border-2 border-red-500/50 rounded-md text-red-200 font-mono text-sm whitespace-pre-wrap"
+      ></div>
+
+      <div
+        id="validation-errors"
+        class="hidden m-4 p-4 bg-yellow-900/30 backdrop-blur-sm border-2 border-yellow-500/50 rounded-md max-h-[600px] overflow-y-auto"
+      >
+        <div
+          class="flex justify-between items-center mb-4 pb-4 border-b-2 border-yellow-500/50"
+        >
+          <h3 class="text-yellow-200 text-xl font-semibold m-0">
+            Validation Errors
+          </h3>
+          <button
+            id="close-validation-errors"
+            class="bg-transparent border-none text-2xl text-yellow-200 cursor-pointer p-0 w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:bg-yellow-800/50 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+          >
+            ×
+          </button>
+        </div>
+        <div id="validation-errors-content" class="text-sm text-yellow-100"></div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ajv/8.17.1/ajv7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/json/json.min.js"></script>
+  </body>
+</html>
