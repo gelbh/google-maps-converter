@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Google Maps V1 to V2 Style Converter</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Google Maps V1 to V2 Style Converter</h1>
+        <p class="description">
+          Convert Google Maps JavaScript API V1 style JSON to V2 CBMS format.
+          Paste your V1 JSON or load an example to get started.
+        </p>
+      </header>
+
+      <div class="main-content">
+        <div class="input-section">
+          <div class="section-header">
+            <h2>V1 Input</h2>
+            <div class="input-controls">
+              <label for="file-input" class="btn btn-secondary"
+                >Upload File</label
+              >
+              <input
+                type="file"
+                id="file-input"
+                accept=".json"
+                style="display: none"
+              />
+              <select id="example-select" class="btn btn-secondary">
+                <option value="">Load Example...</option>
+                <option value="examples/v1/wy.json">Wyoming (wy.json)</option>
+                <option value="examples/v1/multi-brand-network.json">
+                  Multi Brand Network
+                </option>
+                <option value="examples/v1/assassins_creed_iv.json">
+                  Assassin's Creed IV
+                </option>
+              </select>
+              <button id="clear-btn" class="btn btn-secondary">Clear</button>
+            </div>
+          </div>
+          <textarea
+            id="v1-input"
+            placeholder="Paste your V1 style JSON here..."
+          ></textarea>
+        </div>
+
+        <div class="output-section">
+          <div class="section-header">
+            <h2>V2 Output</h2>
+            <div class="output-controls">
+              <span id="validation-status" class="validation-status"></span>
+              <button id="copy-btn" class="btn btn-primary">
+                Copy to Clipboard
+              </button>
+              <button id="download-btn" class="btn btn-primary">
+                Download JSON
+              </button>
+            </div>
+          </div>
+          <textarea
+            id="v2-output"
+            readonly
+            placeholder="V2 output will appear here after conversion..."
+          ></textarea>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="convert-btn" class="btn btn-primary btn-large">
+          Convert
+        </button>
+        <div id="loading" class="loading" style="display: none">
+          <span>Processing...</span>
+        </div>
+      </div>
+
+      <div id="error-display" class="error-display" style="display: none"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="color-utils.js"></script>
+    <script src="mapping.js"></script>
+    <script src="converter.js"></script>
+    <script src="validator.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
