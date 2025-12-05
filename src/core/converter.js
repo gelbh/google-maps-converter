@@ -308,11 +308,7 @@ function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
               id,
               hslAdjustmentsMap
             );
-            const color = extractColor(
-              mergedStyler,
-              "#000000",
-              externalAdjustments
-            );
+            const color = extractColor(mergedStyler, externalAdjustments);
             // Only set color if one was actually specified (not null)
             if (color !== null) {
               willSetProperty = true;
@@ -351,11 +347,7 @@ function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
               id,
               hslAdjustmentsMap
             );
-            const color = extractColor(
-              mergedStyler,
-              "#000000",
-              externalAdjustments
-            );
+            const color = extractColor(mergedStyler, externalAdjustments);
             // Only set color if one was actually specified (not null)
             if (color !== null) {
               if (!style.label) style.label = {};
@@ -366,31 +358,44 @@ function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
       }
     }
   } else if (elementType === "all" || !elementType) {
-    // Handle 'all' elementType - apply color to geometry.fillColor as default
+    // Handle 'all' elementType - apply color to both geometry and label properties
     // Note: This path is for rules with explicit colors, not just HSL adjustments
     // HSL adjustments without colors are handled earlier in the function
     for (const id of targetIds) {
-      // Only apply to geometry if feature supports it
-      if (!supportsGeometry(id)) {
-        continue;
-      }
-
       // Get any stored HSL adjustments for this feature type
       const externalAdjustments = getHslAdjustments(id, hslAdjustmentsMap);
-      const color = extractColor(mergedStyler, "#000000", externalAdjustments);
+      const color = extractColor(mergedStyler, externalAdjustments);
       // Only set color if one was actually specified (not null)
       if (color !== null) {
-        // Map to appropriate property based on feature
-        const targetProperty = mapGeometryColor(id);
-        if (isValidGeometryProperty(id, targetProperty)) {
-          if (!v2StylesMap.has(id)) {
-            v2StylesMap.set(id, { id });
+        if (!v2StylesMap.has(id)) {
+          v2StylesMap.set(id, { id });
+        }
+        const style = v2StylesMap.get(id);
+        // Ensure required elements are present
+        ensureRequiredElements(style, id, elementType);
+
+        // Apply to geometry if feature supports it
+        if (supportsGeometry(id)) {
+          // Map to appropriate property based on feature
+          const targetProperty = mapGeometryColor(id);
+          if (isValidGeometryProperty(id, targetProperty)) {
+            if (!style.geometry) style.geometry = {};
+            style.geometry[targetProperty] = color;
           }
-          const style = v2StylesMap.get(id);
-          // Ensure required elements are present
-          ensureRequiredElements(style, id, elementType);
-          if (!style.geometry) style.geometry = {};
-          style.geometry[targetProperty] = color;
+        }
+
+        // Apply to label properties if feature supports labels
+        // For 'all' elementType, apply to textFillColor as default for labels
+        if (supportsLabel(id)) {
+          // Check which label color properties are valid for this feature
+          if (isValidLabelProperty(id, "textFillColor")) {
+            if (!style.label) style.label = {};
+            style.label.textFillColor = color;
+          } else if (isValidLabelProperty(id, "pinFillColor")) {
+            // Some features use pinFillColor instead
+            if (!style.label) style.label = {};
+            style.label.pinFillColor = color;
+          }
         }
       }
     }
