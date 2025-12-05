@@ -401,12 +401,28 @@ function cleanupStyle(style) {
 
   // Only include geometry if feature supports it and it has properties
   if (hasGeometry && style.geometry && Object.keys(style.geometry).length > 0) {
-    cleaned.geometry = style.geometry;
+    const cleanedGeometry = {};
+    for (const [key, value] of Object.entries(style.geometry)) {
+      if (isValidGeometryProperty(style.id, key)) {
+        cleanedGeometry[key] = value;
+      }
+    }
+    if (Object.keys(cleanedGeometry).length > 0) {
+      cleaned.geometry = cleanedGeometry;
+    }
   }
 
   // Only include label if feature supports it and it has properties
   if (hasLabel && style.label && Object.keys(style.label).length > 0) {
-    cleaned.label = style.label;
+    const cleanedLabel = {};
+    for (const [key, value] of Object.entries(style.label)) {
+      if (isValidLabelProperty(style.id, key)) {
+        cleanedLabel[key] = value;
+      }
+    }
+    if (Object.keys(cleanedLabel).length > 0) {
+      cleaned.label = cleanedLabel;
+    }
   }
 
   // Return null if no valid properties remain

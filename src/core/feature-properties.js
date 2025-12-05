@@ -385,16 +385,20 @@ function getParentFeatureIds(featureId) {
 
 /**
  * Checks if a property is valid for a feature by checking the feature and its parents
+ * If the feature is explicitly defined in the map, only check that feature (not parents).
+ * Only check parents if the feature is not explicitly defined.
  * @param {Object.<string, string[]>} propertiesMap - Map of feature IDs to valid properties
  * @param {string} featureId - V2 feature ID
  * @param {string} property - Property name
  * @returns {boolean} True if valid
  */
 function isValidProperty(propertiesMap, featureId, property) {
-  if (propertiesMap[featureId]?.includes(property)) {
-    return true;
+  // If feature is explicitly defined in the map, only check that feature
+  if (Object.hasOwn(propertiesMap, featureId)) {
+    return propertiesMap[featureId]?.includes(property) ?? false;
   }
 
+  // Only check parents if feature is not explicitly defined
   const parents = getParentFeatureIds(featureId);
   return parents.some((parentId) =>
     propertiesMap[parentId]?.includes(property)
