@@ -9,74 +9,48 @@ let ajvInstance = null;
 let schema = null;
 
 /**
+ * Gets Ajv constructor from global scope
+ * @returns {Function|undefined} Ajv constructor or undefined
+ */
+function getAjvConstructor() {
+  try {
+    if (typeof ajv7 !== "undefined") {
+      return ajv7.Ajv ?? ajv7.default ?? ajv7;
+    }
+    if (typeof Ajv !== "undefined") {
+      return Ajv;
+    }
+    if (typeof window !== "undefined") {
+      const ajv7Global = window.ajv7;
+      if (ajv7Global) {
+        return ajv7Global.Ajv ?? ajv7Global.default ?? ajv7Global;
+      }
+      return window.Ajv;
+    }
+  } catch {
+    // Ignore errors
+  }
+  return undefined;
+}
+
+/**
  * Initializes AJV and loads the schema
  * @returns {Promise<void>}
  */
 async function initializeValidator() {
   if (ajvInstance && schema) {
-    return; // Already initialized
+    return;
   }
 
-  // Load AJV from CDN if not available
-  // The ajv7.min.js build exposes the library as 'ajv7' (not 'Ajv')
-  // Check for both ajv7 and Ajv for compatibility
-  let AjvConstructor;
-  try {
-    // Check for ajv7 first (the actual global name from ajv7.min.js)
-    // ajv7 might be the Ajv class directly, or an object with Ajv property
-    if (typeof ajv7 !== "undefined") {
-      AjvConstructor = ajv7.Ajv || ajv7.default || ajv7;
-    }
-    // Also check for Ajv for backward compatibility
-    if (!AjvConstructor) {
-      AjvConstructor = typeof Ajv !== "undefined" ? Ajv : undefined;
-    }
-  } catch (e) {
-    AjvConstructor = undefined;
-  }
-
-  if (!AjvConstructor && typeof window !== "undefined") {
-    const ajv7Global = window.ajv7;
-    if (ajv7Global) {
-      AjvConstructor = ajv7Global.Ajv || ajv7Global.default || ajv7Global;
-    }
-    if (!AjvConstructor) {
-      AjvConstructor = window.Ajv;
-    }
-  }
+  let AjvConstructor = getAjvConstructor();
 
   if (!AjvConstructor) {
-    // Try loading from CDN - use cdnjs which provides ajv7.min.js
     await loadScript(
       "https://cdnjs.cloudflare.com/ajax/libs/ajv/8.17.1/ajv7.min.js"
     );
-
-    // Small delay to ensure script has executed
     await new Promise((resolve) => setTimeout(resolve, 100));
+    AjvConstructor = getAjvConstructor();
 
-    // Check if ajv7 is now available
-    try {
-      if (typeof ajv7 !== "undefined") {
-        AjvConstructor = ajv7.Ajv || ajv7.default || ajv7;
-      }
-      if (!AjvConstructor) {
-        AjvConstructor = typeof Ajv !== "undefined" ? Ajv : undefined;
-      }
-    } catch (e) {
-      AjvConstructor = undefined;
-    }
-
-    if (!AjvConstructor && typeof window !== "undefined") {
-      const ajv7Global = window.ajv7;
-      if (ajv7Global) {
-        AjvConstructor = ajv7Global.Ajv || ajv7Global.default || ajv7Global;
-      }
-      if (!AjvConstructor) {
-        AjvConstructor = window.Ajv;
-      }
-    }
-
-    // Final check - throw error if still not available
     if (!AjvConstructor) {
       throw new Error(
         "Failed to load Ajv library. Please check your internet connection."
@@ -84,10 +58,7 @@ async function initializeValidator() {
     }
   }
 
-  // Initialize AJV
   ajvInstance = new AjvConstructor({ allErrors: true, verbose: true });
-
-  // Use imported schema (Vite handles JSON imports)
   schema = schemaData;
 }
 
@@ -97,12 +68,11 @@ async function initializeValidator() {
  * @returns {Promise<void>}
  */
 function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) {
-      resolve();
-      return;
-    }
+  if (document.querySelector(`script[src="${src}"]`)) {
+    return Promise.resolve();
+  }
 
+  return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = src;
     script.onload = () => resolve();
@@ -129,13 +99,7 @@ export async function validateV2(v2Json) {
   const validate = ajvInstance.compile(schema);
   const valid = validate(v2Json);
 
-  if (valid) {
-    return { valid: true, errors: null };
-  } else {
-    return {
-      valid: false,
-      errors: validate.errors || [],
-    };
-  }
+  return valid
+    ? { valid: true, errors: null }
+    : { valid: false, errors: validate.errors ?? [] };
 }
-

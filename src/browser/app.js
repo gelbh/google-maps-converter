@@ -100,42 +100,45 @@ function initializeEditors() {
   initializeApp(v1Input, v2Output);
 }
 
+/**
+ * Gets DOM element by ID with optional chaining support
+ * @param {string} id - Element ID
+ * @returns {HTMLElement|null} Element or null if not found
+ */
+function getElement(id) {
+  return document.getElementById(id);
+}
+
 // DOM elements
-const convertBtn = document.getElementById("convert-btn");
-const clearBtn = document.getElementById("clear-btn");
-const copyBtn = document.getElementById("copy-btn");
-const downloadBtn = document.getElementById("download-btn");
-const fileInput = document.getElementById("file-input");
-const loading = document.getElementById("loading");
-const errorDisplay = document.getElementById("error-display");
-const validationStatus = document.getElementById("validation-status");
-const validationErrors = document.getElementById("validation-errors");
-const validationErrorsContent = document.getElementById(
-  "validation-errors-content"
-);
-const closeValidationErrors = document.getElementById(
-  "close-validation-errors"
-);
+const convertBtn = getElement("convert-btn");
+const clearBtn = getElement("clear-btn");
+const copyBtn = getElement("copy-btn");
+const downloadBtn = getElement("download-btn");
+const fileInput = getElement("file-input");
+const loading = getElement("loading");
+const errorDisplay = getElement("error-display");
+const validationStatus = getElement("validation-status");
+const validationErrors = getElement("validation-errors");
+const validationErrorsContent = getElement("validation-errors-content");
+const closeValidationErrors = getElement("close-validation-errors");
 
 function initializeApp(v1Input, v2Output) {
   let currentV2Output = null;
 
-  // Event listeners
-  convertBtn.addEventListener("click", handleConvert);
-  clearBtn.addEventListener("click", handleClear);
-  copyBtn.addEventListener("click", handleCopy);
-  downloadBtn.addEventListener("click", handleDownload);
-  fileInput.addEventListener("change", handleFileUpload);
-  closeValidationErrors.addEventListener("click", hideValidationErrors);
+  convertBtn?.addEventListener("click", handleConvert);
+  clearBtn?.addEventListener("click", handleClear);
+  copyBtn?.addEventListener("click", handleCopy);
+  downloadBtn?.addEventListener("click", handleDownload);
+  fileInput?.addEventListener("change", handleFileUpload);
+  closeValidationErrors?.addEventListener("click", hideValidationErrors);
 
   // Initialize style browser modal
   initializeStyleModal(v1Input);
 
-  // Make validation status clickable to toggle errors
-  validationStatus.addEventListener("click", () => {
-    if (!validationErrors.classList.contains("hidden")) {
+  validationStatus?.addEventListener("click", () => {
+    if (!validationErrors?.classList.contains("hidden")) {
       hideValidationErrors();
-    } else if (validationErrorsContent.innerHTML.trim() !== "") {
+    } else if (validationErrorsContent?.innerHTML.trim()) {
       validationErrors.classList.remove("hidden");
       validationErrors.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
@@ -389,49 +392,39 @@ function initializeApp(v1Input, v2Output) {
     URL.revokeObjectURL(url);
   }
 
-  /**
-   * Shows error message
-   */
   function showError(message) {
-    errorDisplay.textContent = message;
-    errorDisplay.classList.remove("hidden");
+    if (errorDisplay) {
+      errorDisplay.textContent = message;
+      errorDisplay.classList.remove("hidden");
+    }
   }
 
-  /**
-   * Hides error message
-   */
   function hideError() {
-    errorDisplay.classList.add("hidden");
+    errorDisplay?.classList.add("hidden");
   }
 
-  /**
-   * Shows/hides loading indicator
-   */
   function showLoading(show) {
-    loading.classList.toggle("hidden", !show);
-    convertBtn.disabled = show;
+    loading?.classList.toggle("hidden", !show);
+    if (convertBtn) convertBtn.disabled = show;
   }
 
-  /**
-   * Updates validation status
-   */
+  const STATUS_CLASSES = {
+    valid:
+      "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-green-100 text-green-800",
+    invalid:
+      "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-red-100 text-red-800",
+    pending:
+      "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-yellow-100 text-yellow-800",
+  };
+
   function updateValidationStatus(status, text) {
-    // Remove all status classes
+    if (!validationStatus) return;
+
     validationStatus.classList.remove("valid", "invalid", "pending");
 
-    // Add appropriate status class and set base styles
-    if (status) {
+    if (status && STATUS_CLASSES[status]) {
       validationStatus.classList.add(status);
-      if (status === "valid") {
-        validationStatus.className =
-          "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-green-100 text-green-800";
-      } else if (status === "invalid") {
-        validationStatus.className =
-          "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-red-100 text-red-800";
-      } else if (status === "pending") {
-        validationStatus.className =
-          "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-yellow-100 text-yellow-800";
-      }
+      validationStatus.className = STATUS_CLASSES[status];
     }
 
     validationStatus.textContent = text;
@@ -546,35 +539,25 @@ function initializeApp(v1Input, v2Output) {
     validationErrors.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-  /**
-   * Hides validation errors
-   */
   function hideValidationErrors() {
-    validationErrors.classList.add("hidden");
+    validationErrors?.classList.add("hidden");
   }
 
-  /**
-   * Gets nested value from object using path
-   */
   function getNestedValue(obj, path) {
     if (!path || path === "/") {
       return obj;
     }
 
-    const parts = path.split("/").filter((p) => p);
+    const parts = path.split("/").filter(Boolean);
     let current = obj;
 
     for (const part of parts) {
-      if (current === null || current === undefined) {
+      if (current == null) {
         return undefined;
       }
 
-      // Handle array indices
-      if (!isNaN(part)) {
-        current = current[parseInt(part)];
-      } else {
-        current = current[part];
-      }
+      const index = parseInt(part, 10);
+      current = !isNaN(index) ? current[index] : current[part];
     }
 
     return current;
@@ -584,35 +567,28 @@ function initializeApp(v1Input, v2Output) {
    * Initialize the style browser modal
    */
   function initializeStyleModal(v1InputEditor) {
-    // Modal DOM elements
-    const modal = document.getElementById("style-modal");
-    const modalOverlay = document.getElementById("style-modal-overlay");
-    const openModalBtn = document.getElementById("open-style-modal-btn");
-    const closeModalBtn = document.getElementById("close-style-modal-btn");
-    const searchInput = document.getElementById("style-search-input");
-    const sortSelect = document.getElementById("style-sort-select");
-    const tagFiltersContainer = document.getElementById(
-      "tag-filters-container"
-    );
-    const colorFiltersContainer = document.getElementById(
-      "color-filters-container"
-    );
-    const clearFiltersBtn = document.getElementById("clear-filters-btn");
-    const toggleFiltersBtn = document.getElementById("toggle-filters-btn");
-    const toggleFiltersText = document.getElementById("toggle-filters-text");
-    const toggleFiltersIcon = document.getElementById("toggle-filters-icon");
-    const filterControlsSection = document.getElementById(
-      "filter-controls-section"
-    );
-    const resultsGrid = document.getElementById("style-results-grid");
-    const resultsCount = document.getElementById("results-count");
-    const modalLoading = document.getElementById("style-modal-loading");
-    const modalError = document.getElementById("style-modal-error");
-    const modalEmpty = document.getElementById("style-modal-empty");
-    const paginationPrev = document.getElementById("pagination-prev");
-    const paginationNext = document.getElementById("pagination-next");
-    const paginationInfo = document.getElementById("pagination-info");
-    const paginationPageSize = document.getElementById("pagination-page-size");
+    const modal = getElement("style-modal");
+    const modalOverlay = getElement("style-modal-overlay");
+    const openModalBtn = getElement("open-style-modal-btn");
+    const closeModalBtn = getElement("close-style-modal-btn");
+    const searchInput = getElement("style-search-input");
+    const sortSelect = getElement("style-sort-select");
+    const tagFiltersContainer = getElement("tag-filters-container");
+    const colorFiltersContainer = getElement("color-filters-container");
+    const clearFiltersBtn = getElement("clear-filters-btn");
+    const toggleFiltersBtn = getElement("toggle-filters-btn");
+    const toggleFiltersText = getElement("toggle-filters-text");
+    const toggleFiltersIcon = getElement("toggle-filters-icon");
+    const filterControlsSection = getElement("filter-controls-section");
+    const resultsGrid = getElement("style-results-grid");
+    const resultsCount = getElement("results-count");
+    const modalLoading = getElement("style-modal-loading");
+    const modalError = getElement("style-modal-error");
+    const modalEmpty = getElement("style-modal-empty");
+    const paginationPrev = getElement("pagination-prev");
+    const paginationNext = getElement("pagination-next");
+    const paginationInfo = getElement("pagination-info");
+    const paginationPageSize = getElement("pagination-page-size");
 
     // State management
     let modalState = {
@@ -639,22 +615,19 @@ function initializeApp(v1Input, v2Output) {
       loadStyles();
     }, 400);
 
-    // Open modal
     function openModal() {
-      modal.classList.remove("hidden");
+      modal?.classList.remove("hidden");
       document.body.style.overflow = "hidden";
       if (!filterOptionsLoaded) {
         loadFilterOptions();
       }
       loadStyles();
-      searchInput.focus();
-      // Initialize filter height after a short delay to ensure DOM is ready
+      searchInput?.focus();
       setTimeout(initializeFiltersHeight, 100);
     }
 
-    // Close modal
     function closeModal() {
-      modal.classList.add("hidden");
+      modal?.classList.add("hidden");
       document.body.style.overflow = "";
     }
 
@@ -892,24 +865,26 @@ function initializeApp(v1Input, v2Output) {
       });
     }
 
-    // Update pagination controls
     function updatePagination() {
-      paginationPrev.disabled = modalState.currentPage === 1;
-      paginationNext.disabled = modalState.currentPage >= modalState.totalPages;
-      paginationInfo.textContent = `Page ${modalState.currentPage} of ${
-        modalState.totalPages || 1
-      }`;
+      if (paginationPrev)
+        paginationPrev.disabled = modalState.currentPage === 1;
+      if (paginationNext)
+        paginationNext.disabled =
+          modalState.currentPage >= modalState.totalPages;
+      if (paginationInfo) {
+        paginationInfo.textContent = `Page ${modalState.currentPage} of ${
+          modalState.totalPages || 1
+        }`;
+      }
     }
 
-    // Update results count
     function updateResultsCount() {
-      if (modalState.totalResults > 0) {
-        resultsCount.textContent = `${modalState.totalResults} style${
-          modalState.totalResults !== 1 ? "s" : ""
-        } found`;
-      } else {
-        resultsCount.textContent = "No styles found";
-      }
+      if (!resultsCount) return;
+      const { totalResults } = modalState;
+      resultsCount.textContent =
+        totalResults > 0
+          ? `${totalResults} style${totalResults !== 1 ? "s" : ""} found`
+          : "No styles found";
     }
 
     // Clear all filters
@@ -1007,57 +982,54 @@ function initializeApp(v1Input, v2Output) {
       }
     }
 
-    // Event listeners
-    openModalBtn.addEventListener("click", openModal);
-    closeModalBtn.addEventListener("click", closeModal);
-    modalOverlay.addEventListener("click", closeModal);
+    openModalBtn?.addEventListener("click", openModal);
+    closeModalBtn?.addEventListener("click", closeModal);
+    modalOverlay?.addEventListener("click", closeModal);
 
-    searchInput.addEventListener("input", (e) => {
+    searchInput?.addEventListener("input", (e) => {
       modalState.searchText = e.target.value;
       debouncedSearch();
     });
 
-    sortSelect.addEventListener("change", (e) => {
+    sortSelect?.addEventListener("change", (e) => {
       modalState.sort = e.target.value;
       modalState.currentPage = 1;
       loadStyles();
     });
 
-    clearFiltersBtn.addEventListener("click", clearFilters);
-    toggleFiltersBtn.addEventListener("click", toggleFilters);
+    clearFiltersBtn?.addEventListener("click", clearFilters);
+    toggleFiltersBtn?.addEventListener("click", toggleFilters);
 
-    paginationPrev.addEventListener("click", () => {
+    paginationPrev?.addEventListener("click", () => {
       if (modalState.currentPage > 1) {
         modalState.currentPage--;
         loadStyles();
-        resultsGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+        resultsGrid?.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     });
 
-    paginationNext.addEventListener("click", () => {
+    paginationNext?.addEventListener("click", () => {
       if (modalState.currentPage < modalState.totalPages) {
         modalState.currentPage++;
         loadStyles();
-        resultsGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+        resultsGrid?.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     });
 
-    paginationPageSize.addEventListener("change", (e) => {
-      modalState.pageSize = parseInt(e.target.value);
+    paginationPageSize?.addEventListener("change", (e) => {
+      modalState.pageSize = parseInt(e.target.value, 10);
       modalState.currentPage = 1;
       loadStyles();
     });
 
-    // Keyboard shortcuts
     document.addEventListener("keydown", (e) => {
-      if (!modal.classList.contains("hidden")) {
-        if (e.key === "Escape") {
-          closeModal();
-        }
-        if (e.key === "Enter" && document.activeElement === searchInput) {
-          e.preventDefault();
-          loadStyles();
-        }
+      if (modal?.classList.contains("hidden")) return;
+      if (e.key === "Escape") {
+        closeModal();
+      }
+      if (e.key === "Enter" && document.activeElement === searchInput) {
+        e.preventDefault();
+        loadStyles();
       }
     });
   }

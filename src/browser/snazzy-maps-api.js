@@ -24,6 +24,50 @@ function getApiKey() {
 }
 
 /**
+ * Builds URLSearchParams with API key and optional parameters
+ * @param {Object} options - Query parameters
+ * @returns {URLSearchParams} Configured URLSearchParams
+ */
+function buildSearchParams(options) {
+  const params = new URLSearchParams();
+  params.append("key", getApiKey());
+
+  if (options.sort) params.append("sort", options.sort);
+  if (options.text) params.append("text", options.text);
+  if (options.page) params.append("page", options.page.toString());
+  if (options.pageSize) params.append("pageSize", options.pageSize.toString());
+
+  if (options.tag) {
+    const tags = Array.isArray(options.tag) ? options.tag : [options.tag];
+    tags.filter(Boolean).forEach((t) => params.append("tag", t));
+  }
+
+  if (options.color) {
+    const colors = Array.isArray(options.color)
+      ? options.color
+      : [options.color];
+    colors.filter(Boolean).forEach((c) => params.append("color", c));
+  }
+
+  return params;
+}
+
+/**
+ * Handles API response and extracts error message
+ * @param {Response} response - Fetch response
+ * @returns {Promise<Object>} Parsed JSON response
+ * @throws {Error} If response is not OK
+ */
+async function handleApiResponse(response) {
+  if (!response.ok) {
+    throw new Error(
+      `Snazzy Maps API error: ${response.status} ${response.statusText}`
+    );
+  }
+  return response.json();
+}
+
+/**
  * Fetches styles from Snazzy Maps API
  * @param {Object} options - Query parameters
  * @param {string} [options.sort] - Sort order (e.g., 'popular', 'newest', 'alphabetical')
@@ -35,41 +79,16 @@ function getApiKey() {
  * @returns {Promise<Object>} API response with styles array
  */
 export async function fetchStyles(options = {}) {
-  const { sort, tag, color, text, page = 1, pageSize = 12 } = options;
-
-  const params = new URLSearchParams();
-  // API key is required - use query parameter to avoid CORS preflight issues
-  params.append("key", getApiKey());
-  if (sort) params.append("sort", sort);
-  // Handle multiple tags/colors - API may support comma-separated or multiple params
-  if (tag) {
-    const tags = Array.isArray(tag) ? tag : [tag];
-    tags.forEach((t) => {
-      if (t) params.append("tag", t);
-    });
-  }
-  if (color) {
-    const colors = Array.isArray(color) ? color : [color];
-    colors.forEach((c) => {
-      if (c) params.append("color", c);
-    });
-  }
-  if (text) params.append("text", text);
-  params.append("page", page.toString());
-  params.append("pageSize", pageSize.toString());
-
-  const url = `${API_BASE_URL}?${params.toString()}`;
+  const params = buildSearchParams({
+    ...options,
+    page: options.page ?? 1,
+    pageSize: options.pageSize ?? 12,
+  });
 
   try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(
-        `Snazzy Maps API error: ${response.status} ${response.statusText}`
-      );
-    }
-
-    const data = await response.json();
+    const data = await handleApiResponse(
+      await fetch(`${API_BASE_URL}?${params.toString()}`)
+    );
     return data;
   } catch (error) {
     throw new Error(
@@ -83,45 +102,45 @@ export async function fetchStyles(options = {}) {
  * @param {string|number} styleId - Style ID
  * @returns {Promise<Object>} Style object with parsed JSON
  */
+/**
+ * Extracts style data from API response, handling different response structures
+ * @param {Object|Array} data - API response data
+ * @returns {Object} Style data object
+ */
+function extractStyleData(data) {
+  if (Array.isArray(data)) {
+    return data[0] ?? data;
+  }
+  if (data?.results && Array.isArray(data.results)) {
+    return data.results[0] ?? data;
+  }
+  if (data?.data) {
+    return data.data;
+  }
+  return data;
+}
+
 export async function fetchStyleById(styleId) {
   try {
-    // API key is required - use query parameter to avoid CORS preflight issues
     const params = new URLSearchParams();
     params.append("key", getApiKey());
     params.append("id", styleId.toString());
-    const response = await fetch(`${API_BASE_URL}?${params.toString()}`);
 
-    if (!response.ok) {
-      throw new Error(
-        `Snazzy Maps API error: ${response.status} ${response.statusText}`
-      );
-    }
+    const data = await handleApiResponse(
+      await fetch(`${API_BASE_URL}?${params.toString()}`)
+    );
 
-    const data = await response.json();
+    const styleData = extractStyleData(data);
 
-    // Handle different response structures
-    let styleData = data;
-    if (Array.isArray(data)) {
-      styleData = data[0] || data;
-    } else if (data.results && Array.isArray(data.results)) {
-      styleData = data.results[0] || data;
-    } else if (data.data) {
-      styleData = data.data;
-    }
-
-    // The API returns styles with a 'json' field containing the V1 style JSON as a string
-    if (styleData && styleData.json) {
+    if (styleData?.json) {
       try {
         styleData.parsedJson = JSON.parse(styleData.json);
       } catch (parseError) {
-        console.warn(
-          `Failed to parse JSON for style ${styleId}:`,
-          parseError
-        );
+        console.warn(`Failed to parse JSON for style ${styleId}:`, parseError);
       }
     }
 
-    return styleData || data;
+    return styleData ?? data;
   } catch (error) {
     throw new Error(
       `Failed to fetch style ${styleId} from Snazzy Maps: ${error.message}`
@@ -135,7 +154,7 @@ export async function fetchStyleById(styleId) {
  * @returns {Object|null} Parsed V1 style JSON or null if parsing fails
  */
 export function parseStyleJson(style) {
-  if (!style || !style.json) {
+  if (!style?.json) {
     return null;
   }
 
@@ -173,13 +192,11 @@ export function debounce(func, wait) {
 export function extractTagsFromStyles(styles) {
   const tagsSet = new Set();
   styles.forEach((style) => {
-    if (style.tags && Array.isArray(style.tags)) {
-      style.tags.forEach((tag) => {
-        if (tag && typeof tag === "string") {
-          tagsSet.add(tag);
-        }
-      });
-    }
+    style?.tags?.forEach((tag) => {
+      if (typeof tag === "string") {
+        tagsSet.add(tag);
+      }
+    });
   });
   return Array.from(tagsSet).sort();
 }
@@ -189,36 +206,37 @@ export function extractTagsFromStyles(styles) {
  * @param {Array} styles - Array of style objects
  * @returns {Array<string>} Array of unique color names
  */
+const COMMON_COLORS = [
+  "black",
+  "white",
+  "gray",
+  "grey",
+  "red",
+  "blue",
+  "green",
+  "yellow",
+  "orange",
+  "purple",
+  "pink",
+  "brown",
+];
+
+function isColorLike(tag) {
+  const colorLike = tag.toLowerCase();
+  return COMMON_COLORS.some((c) => colorLike.includes(c));
+}
+
 export function extractColorsFromStyles(styles) {
   const colorsSet = new Set();
   styles.forEach((style) => {
-    if (style.color && typeof style.color === "string") {
+    if (typeof style?.color === "string") {
       colorsSet.add(style.color);
     }
-    // Also check for colors in tags if they follow a pattern
-    if (style.tags && Array.isArray(style.tags)) {
-      style.tags.forEach((tag) => {
-        // Check if tag looks like a color (basic heuristic)
-        const colorLike = tag.toLowerCase();
-        const commonColors = [
-          "black",
-          "white",
-          "gray",
-          "grey",
-          "red",
-          "blue",
-          "green",
-          "yellow",
-          "orange",
-          "purple",
-          "pink",
-          "brown",
-        ];
-        if (commonColors.some((c) => colorLike.includes(c))) {
-          colorsSet.add(tag);
-        }
-      });
-    }
+    style?.tags?.forEach((tag) => {
+      if (typeof tag === "string" && isColorLike(tag)) {
+        colorsSet.add(tag);
+      }
+    });
   });
   return Array.from(colorsSet).sort();
 }
@@ -229,12 +247,17 @@ export function extractColorsFromStyles(styles) {
  * @param {number} [maxPages=5] - Maximum number of pages to fetch
  * @returns {Promise<{tags: Array<string>, colors: Array<string>}>}
  */
+function extractStylesFromResponse(response) {
+  return Array.isArray(response)
+    ? response
+    : response?.results ?? response?.styles ?? response?.data ?? [];
+}
+
 export async function fetchAvailableFilters(maxPages = 5) {
   const tagsSet = new Set();
   const colorsSet = new Set();
 
   try {
-    // Fetch multiple pages to get a good sample
     for (let page = 1; page <= maxPages; page++) {
       const response = await fetchStyles({
         sort: "popular",
@@ -242,18 +265,11 @@ export async function fetchAvailableFilters(maxPages = 5) {
         pageSize: 50,
       });
 
-      const styles = Array.isArray(response)
-        ? response
-        : response.results || response.styles || response.data || [];
-
+      const styles = extractStylesFromResponse(response);
       if (styles.length === 0) break;
 
-      // Extract tags and colors
-      const tags = extractTagsFromStyles(styles);
-      const colors = extractColorsFromStyles(styles);
-
-      tags.forEach((tag) => tagsSet.add(tag));
-      colors.forEach((color) => colorsSet.add(color));
+      extractTagsFromStyles(styles).forEach((tag) => tagsSet.add(tag));
+      extractColorsFromStyles(styles).forEach((color) => colorsSet.add(color));
     }
   } catch (error) {
     console.warn("Failed to fetch all filter options:", error);
