@@ -16,7 +16,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, "..");
-const examplesDir = join(projectRoot, "examples", "v1");
+const examplesDir = join(projectRoot, "public", "examples", "v1");
 
 /**
  * Reads all JSON files from the examples/v1 directory
@@ -143,7 +143,7 @@ async function runTests() {
   const files = await getV1ExampleFiles();
 
   if (files.length === 0) {
-    console.error("No V1 example files found in examples/v1/");
+    console.error("No V1 example files found in public/examples/v1/");
     process.exit(1);
   }
 
