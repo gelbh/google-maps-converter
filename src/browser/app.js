@@ -223,7 +223,12 @@ function initializeApp(v1Input, v2Output) {
     try {
       // Prepend base URL for GitHub Pages compatibility
       const baseUrl = import.meta.env.BASE_URL || "/";
-      const fullPath = `${baseUrl}${examplePath}`.replace(/\/+/g, "/");
+      // Ensure baseUrl ends with / and examplePath doesn't start with /
+      const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
+      const normalizedPath = examplePath.startsWith("/")
+        ? examplePath.slice(1)
+        : examplePath;
+      const fullPath = `${normalizedBase}${normalizedPath}`;
       const response = await fetch(fullPath);
       if (!response.ok) {
         throw new Error(`Failed to load example: ${response.statusText}`);
