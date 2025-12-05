@@ -16,25 +16,20 @@ export function hexToHsl(hex) {
 
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
-  let h,
-    s,
-    l = (max + min) / 2;
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
 
-  if (max === min) {
-    h = s = 0; // achromatic
-  } else {
+  if (max !== min) {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r:
-        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-        break;
-      case g:
-        h = ((b - r) / d + 2) / 6;
-        break;
-      case b:
-        h = ((r - g) / d + 4) / 6;
-        break;
+
+    if (max === r) {
+      h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    } else if (max === g) {
+      h = ((b - r) / d + 2) / 6;
+    } else {
+      h = ((r - g) / d + 4) / 6;
     }
   }
 
@@ -87,6 +82,18 @@ export function hslToHex(h, s, l) {
 }
 
 /**
+ * Applies HSL adjustment to a single component
+ * @param {number} value - Current HSL component value (0-100)
+ * @param {number|string} adjustment - Adjustment value (-100 to 100)
+ * @returns {number} Adjusted value clamped to 0-100
+ */
+function applyHslComponent(value, adjustment) {
+  if (adjustment === undefined || adjustment === null) return value;
+  const adjust = parseFloat(adjustment);
+  return isNaN(adjust) ? value : Math.max(0, Math.min(100, value + adjust));
+}
+
+/**
  * Applies V1 lightness and saturation adjustments to a base color
  * @param {string} baseColor - Base hex color (#RRGGBB)
  * @param {number|string} lightness - Lightness adjustment (-100 to 100)
@@ -97,21 +104,8 @@ export function applyHslAdjustments(baseColor, lightness, saturation) {
   const normalized = normalizeHex(baseColor);
   let { h, s, l } = hexToHsl(normalized);
 
-  // Apply saturation adjustment (-100 to 100 → 0-100% saturation)
-  if (saturation !== undefined && saturation !== null) {
-    const satAdjust = parseFloat(saturation);
-    if (!isNaN(satAdjust)) {
-      s = Math.max(0, Math.min(100, s + satAdjust));
-    }
-  }
-
-  // Apply lightness adjustment (-100 to 100 → 0-100% lightness)
-  if (lightness !== undefined && lightness !== null) {
-    const lightAdjust = parseFloat(lightness);
-    if (!isNaN(lightAdjust)) {
-      l = Math.max(0, Math.min(100, l + lightAdjust));
-    }
-  }
+  s = applyHslComponent(s, saturation);
+  l = applyHslComponent(l, lightness);
 
   return hslToHex(h, s, l);
 }
@@ -161,38 +155,32 @@ export function normalizeHex(hex) {
  * @returns {string|null} Hex color string (#RRGGBB) or null if no color specified and no HSL adjustments
  */
 export function extractColor(styler, externalAdjustments = null) {
-  // Check if a color is explicitly provided
-  const hasExplicitColor = styler.color !== undefined && styler.color !== null;
-
-  // Check if HSL adjustments are provided in styler
+  const hasExplicitColor = styler?.color !== undefined && styler.color !== null;
   const hasHslAdjustments =
-    styler.lightness !== undefined || styler.saturation !== undefined;
+    styler?.lightness !== undefined || styler?.saturation !== undefined;
+  const hasExternalAdjustments =
+    externalAdjustments &&
+    (externalAdjustments.saturation !== undefined ||
+      externalAdjustments.lightness !== undefined);
 
-  // Return null if no color and no HSL adjustments
-  if (!hasExplicitColor && !hasHslAdjustments) {
+  if (!hasExplicitColor && !hasHslAdjustments && !hasExternalAdjustments) {
     return null;
   }
 
-  // If HSL adjustments are provided but no base color, return null
-  // (HSL adjustments require a base color to adjust)
-  if (!hasExplicitColor && hasHslAdjustments) {
+  // If no explicit color but only HSL adjustments, we can't extract a color
+  if (!hasExplicitColor && (hasHslAdjustments || hasExternalAdjustments)) {
     return null;
   }
 
-  // We have an explicit color - normalize it
   let color = normalizeHex(styler.color);
 
-  // Apply HSL adjustments from styler if present
+  // Apply HSL adjustments from the styler itself first
   if (hasHslAdjustments) {
     color = applyHslAdjustments(color, styler.lightness, styler.saturation);
   }
 
-  // Apply external adjustments if provided (these are from parent/general rules)
-  if (
-    externalAdjustments &&
-    (externalAdjustments.saturation !== undefined ||
-      externalAdjustments.lightness !== undefined)
-  ) {
+  // Then apply external adjustments (from feature-level rules)
+  if (hasExternalAdjustments) {
     color = applyHslAdjustments(
       color,
       externalAdjustments.lightness,

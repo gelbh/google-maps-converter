@@ -27,20 +27,18 @@ import {
  */
 function detectVariant(v1Styles) {
   if (!Array.isArray(v1Styles) || v1Styles.length === 0) {
-    return "light"; // Default to light
+    return "light";
   }
 
   let totalLightness = 0;
   let colorCount = 0;
 
-  // Analyze colors from all styles
   for (const style of v1Styles) {
-    if (!style.stylers || !Array.isArray(style.stylers)) {
-      continue;
-    }
+    const stylers = style?.stylers;
+    if (!Array.isArray(stylers)) continue;
 
-    for (const styler of style.stylers) {
-      if (styler.color) {
+    for (const styler of stylers) {
+      if (styler?.color) {
         const hsl = hexToHsl(normalizeHex(styler.color));
         totalLightness += hsl.l;
         colorCount++;
@@ -48,13 +46,11 @@ function detectVariant(v1Styles) {
     }
   }
 
-  // If we have colors, use average lightness to determine variant
   if (colorCount > 0) {
     const avgLightness = totalLightness / colorCount;
     return avgLightness < 50 ? "dark" : "light";
   }
 
-  // Default to light if no colors found
   return "light";
 }
 
@@ -74,13 +70,8 @@ function convertWeight(weight) {
     return null;
   }
 
-  // Clamp to 0-8 range
   const clamped = Math.max(0, Math.min(8, numWeight));
-
-  // Round to nearest 0.125
-  const rounded = Math.round(clamped / 0.125) * 0.125;
-
-  return rounded;
+  return Math.round(clamped / 0.125) * 0.125;
 }
 
 /**
@@ -100,26 +91,47 @@ function getParentFeatureIds(featureId) {
 }
 
 /**
- * Gets HSL adjustments for a feature ID, checking parent features
+ * Gets HSL adjustments for a feature ID, merging from feature and all applicable parents
+ * Merges adjustments from the feature itself and all parent features in the hierarchy
+ * Feature-specific adjustments override parent adjustments
  * @param {string} featureId - V2 feature ID
  * @param {Map} hslAdjustmentsMap - Map of feature ID to HSL adjustments
- * @returns {Object|null} HSL adjustments object {saturation?: number, lightness?: number} or null
+ * @returns {Object|null} Merged HSL adjustments object {saturation?: number, lightness?: number} or null
  */
 function getHslAdjustments(featureId, hslAdjustmentsMap) {
-  // Check exact match first
-  if (hslAdjustmentsMap.has(featureId)) {
-    return hslAdjustmentsMap.get(featureId);
-  }
+  const adjustments = {};
+  let hasAdjustments = false;
 
-  // Check parent features
+  // Start with adjustments from parent features (most general first)
   const parents = getParentFeatureIds(featureId);
   for (const parentId of parents) {
-    if (hslAdjustmentsMap.has(parentId)) {
-      return hslAdjustmentsMap.get(parentId);
+    const parentAdjustments = hslAdjustmentsMap.get(parentId);
+    if (parentAdjustments) {
+      if (parentAdjustments.saturation !== undefined) {
+        adjustments.saturation = parentAdjustments.saturation;
+        hasAdjustments = true;
+      }
+      if (parentAdjustments.lightness !== undefined) {
+        adjustments.lightness = parentAdjustments.lightness;
+        hasAdjustments = true;
+      }
     }
   }
 
-  return null;
+  // Override with feature-specific adjustments (most specific last)
+  const featureAdjustments = hslAdjustmentsMap.get(featureId);
+  if (featureAdjustments) {
+    if (featureAdjustments.saturation !== undefined) {
+      adjustments.saturation = featureAdjustments.saturation;
+      hasAdjustments = true;
+    }
+    if (featureAdjustments.lightness !== undefined) {
+      adjustments.lightness = featureAdjustments.lightness;
+      hasAdjustments = true;
+    }
+  }
+
+  return hasAdjustments ? adjustments : null;
 }
 
 /**
@@ -131,33 +143,44 @@ function getHslAdjustments(featureId, hslAdjustmentsMap) {
 function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
   const { featureType, elementType, stylers } = v1Rule;
 
-  if (!stylers || !Array.isArray(stylers)) {
+  // Validate featureType and elementType are strings (or null/undefined)
+  if (
+    featureType !== undefined &&
+    featureType !== null &&
+    typeof featureType !== "string"
+  ) {
+    return;
+  }
+  if (
+    elementType !== undefined &&
+    elementType !== null &&
+    typeof elementType !== "string"
+  ) {
     return;
   }
 
-  // Determine which V2 ids to target
-  let targetIds = [];
-  if (featureType === "all") {
-    targetIds = getAllV2Ids();
-  } else {
-    const mappedId = getV2Id(featureType);
-    if (mappedId) {
-      targetIds = Array.isArray(mappedId) ? mappedId : [mappedId];
-    }
+  if (!Array.isArray(stylers)) {
+    return;
   }
+
+  const targetIds =
+    featureType === "all"
+      ? getAllV2Ids()
+      : (() => {
+          const mappedId = getV2Id(featureType);
+          return mappedId
+            ? Array.isArray(mappedId)
+              ? mappedId
+              : [mappedId]
+            : [];
+        })();
 
   if (targetIds.length === 0) {
-    return; // No valid mapping
+    return;
   }
 
-  // Merge all stylers into a single object (V1 stylers are applied together)
-  const mergedStyler = {};
-  for (const styler of stylers) {
-    Object.assign(mergedStyler, styler);
-  }
+  const mergedStyler = Object.assign({}, ...stylers);
 
-  // Track HSL adjustments from general rules (elementType: "all" or no elementType)
-  // that have saturation/lightness but no explicit color
   const isGeneralRule = elementType === "all" || !elementType;
   const hasExplicitColor =
     mergedStyler.color !== undefined && mergedStyler.color !== null;
@@ -166,90 +189,102 @@ function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
     mergedStyler.lightness !== undefined;
 
   if (isGeneralRule && !hasExplicitColor && hasHslAdjustments) {
-    // Store adjustments for all target feature types
     const adjustments = {};
     if (mergedStyler.saturation !== undefined) {
-      adjustments.saturation = parseFloat(mergedStyler.saturation);
+      const sat = parseFloat(mergedStyler.saturation);
+      if (!isNaN(sat)) adjustments.saturation = sat;
     }
     if (mergedStyler.lightness !== undefined) {
-      adjustments.lightness = parseFloat(mergedStyler.lightness);
+      const light = parseFloat(mergedStyler.lightness);
+      if (!isNaN(light)) adjustments.lightness = light;
     }
 
-    // Only store if adjustments are valid numbers
-    if (
-      (adjustments.saturation === undefined ||
-        !isNaN(adjustments.saturation)) &&
-      (adjustments.lightness === undefined || !isNaN(adjustments.lightness))
-    ) {
+    if (Object.keys(adjustments).length > 0) {
       for (const id of targetIds) {
-        // Store adjustments for this feature type
-        // If adjustments already exist, merge them (new values replace old ones for the same property)
-        if (hslAdjustmentsMap.has(id)) {
-          const existing = hslAdjustmentsMap.get(id);
-          hslAdjustmentsMap.set(id, {
-            saturation:
-              adjustments.saturation !== undefined
-                ? adjustments.saturation
-                : existing.saturation,
-            lightness:
-              adjustments.lightness !== undefined
-                ? adjustments.lightness
-                : existing.lightness,
-          });
-        } else {
-          hslAdjustmentsMap.set(id, adjustments);
-        }
+        const existing = hslAdjustmentsMap.get(id);
+        hslAdjustmentsMap.set(id, {
+          ...existing,
+          ...adjustments,
+        });
       }
     }
   }
 
-  // Handle visibility
+  // Handle visibility rules
+  // Visibility handling is complex because:
+  // 1. Some features only support geometry, some only labels, some both
+  // 2. elementType can target specific parts (geometry, labels) or all
+  // 3. labels.icon has special handling - it controls label visibility, not pin color
   if (mergedStyler.visibility !== undefined) {
     const visible = getV2Visibility(mergedStyler.visibility);
     if (visible !== null) {
-      for (const id of targetIds) {
-        if (!v2StylesMap.has(id)) {
-          v2StylesMap.set(id, { id });
-        }
-        const style = v2StylesMap.get(id);
+      // Special case: labels.icon visibility controls label visibility, not pinFillColor
+      // This is a V1 quirk where labels.icon visibility affects the entire label element
+      if (elementType === "labels.icon") {
+        for (const id of targetIds) {
+          if (!supportsLabel(id)) continue;
 
-        const hasGeometry = supportsGeometry(id);
-        const hasLabel = supportsLabel(id);
+          let style = v2StylesMap.get(id);
+          if (!style) {
+            style = { id };
+            v2StylesMap.set(id, style);
+          }
 
-        // For label-only features: always set visibility on label (even if elementType targets geometry)
-        if (!hasGeometry && hasLabel) {
-          if (!style.label) style.label = {};
+          style.label ??= {};
           style.label.visible = visible;
         }
-        // For geometry-only features: always set visibility on geometry (even if elementType targets labels)
-        else if (hasGeometry && !hasLabel) {
-          if (!style.geometry) style.geometry = {};
-          style.geometry.visible = visible;
-        }
-        // For features supporting both: respect elementType
-        else {
-          // Ensure required elements are present based on feature capabilities
-          ensureRequiredElements(style, id, elementType);
+      } else {
+        // General visibility handling
+        for (const id of targetIds) {
+          let style = v2StylesMap.get(id);
+          if (!style) {
+            style = { id };
+            v2StylesMap.set(id, style);
+          }
 
-          // Visibility can apply to both geometry and label
-          // Only set visibility if feature supports the element type
-          if (
-            (elementType === "all" ||
-              !elementType ||
-              elementType.startsWith("geometry")) &&
-            hasGeometry
-          ) {
-            if (!style.geometry) style.geometry = {};
+          const hasGeometry = supportsGeometry(id);
+          const hasLabel = supportsLabel(id);
+
+          // Case 1: Feature only supports labels (e.g., political.city)
+          // Visibility applies directly to label
+          if (!hasGeometry && hasLabel) {
+            style.label ??= {};
+            style.label.visible = visible;
+          }
+          // Case 2: Feature only supports geometry (e.g., natural.water)
+          // Visibility applies directly to geometry
+          else if (hasGeometry && !hasLabel) {
+            style.geometry ??= {};
             style.geometry.visible = visible;
           }
-          if (
-            (elementType === "all" ||
+          // Case 3: Feature supports both geometry and labels
+          // Need to determine which element(s) the visibility rule targets
+          else {
+            ensureRequiredElements(style, id, elementType);
+
+            // Determine target based on elementType:
+            // - No elementType or "all" → applies to both geometry and labels
+            // - Starts with "geometry" → applies to geometry only
+            // - Starts with "labels" → applies to labels only
+            const isGeometryTarget =
               !elementType ||
-              elementType.startsWith("labels")) &&
-            hasLabel
-          ) {
-            if (!style.label) style.label = {};
-            style.label.visible = visible;
+              elementType === "all" ||
+              elementType.startsWith("geometry");
+            const isLabelTarget =
+              !elementType ||
+              elementType === "all" ||
+              elementType.startsWith("labels");
+
+            // Apply visibility to geometry if it's a target and feature supports it
+            if (isGeometryTarget && hasGeometry) {
+              style.geometry ??= {};
+              style.geometry.visible = visible;
+            }
+            // Apply visibility to labels if it's a target and feature supports it
+            if (isLabelTarget && hasLabel) {
+              style.label ??= {};
+              style.label.visible = visible;
+            }
           }
         }
       }
@@ -262,140 +297,91 @@ function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
     const [section, property] = propertyPath.split(".");
 
     for (const id of targetIds) {
-      if (section === "geometry") {
-        // Only process geometry if feature supports it
-        if (!supportsGeometry(id)) {
-          continue;
-        }
-      } else if (section === "label") {
-        // Only process label if feature supports it
-        if (!supportsLabel(id)) {
-          continue;
-        }
+      if (section === "geometry" && !supportsGeometry(id)) continue;
+      if (section === "label" && !supportsLabel(id)) continue;
+
+      let style = v2StylesMap.get(id);
+      if (!style) {
+        style = { id };
+        v2StylesMap.set(id, style);
       }
 
-      if (!v2StylesMap.has(id)) {
-        v2StylesMap.set(id, { id });
-      }
-      const style = v2StylesMap.get(id);
-
-      // Ensure required elements are present before processing properties
       ensureRequiredElements(style, id, elementType);
 
       if (section === "geometry") {
-        let willSetProperty = false;
-        let propertyToSet = null;
-        let valueToSet = null;
-
-        if (
+        const isColorProperty =
           property === "fillColor" ||
           property === "strokeColor" ||
-          property === "color"
+          property === "color";
+        const targetProperty =
+          property === "color" ? mapGeometryColor(id) : property;
+
+        if (isColorProperty && isValidGeometryProperty(id, targetProperty)) {
+          const externalAdjustments = getHslAdjustments(id, hslAdjustmentsMap);
+          const color = extractColor(mergedStyler, externalAdjustments);
+          if (color !== null) {
+            style.geometry ??= {};
+            style.geometry[targetProperty] = color;
+          }
+        } else if (
+          property === "strokeWeight" &&
+          isValidGeometryProperty(id, "strokeWeight")
         ) {
-          // Map geometry.color to appropriate property based on feature
-          // Note: More specific elementTypes (geometry.fill, geometry.stroke) map to
-          // specific properties (fillColor, strokeColor), while general "geometry"
-          // maps to "color" which then gets mapped to fillColor via mapGeometryColor.
-          // Since rules are processed in order, later rules will override earlier ones,
-          // ensuring that more specific elementTypes take precedence.
-          const targetProperty =
-            property === "color" ? mapGeometryColor(id) : property;
-
-          // Only set if property is valid for this feature
-          if (isValidGeometryProperty(id, targetProperty)) {
-            // Get any stored HSL adjustments for this feature type
-            const externalAdjustments = getHslAdjustments(
-              id,
-              hslAdjustmentsMap
-            );
-            const color = extractColor(mergedStyler, externalAdjustments);
-            // Only set color if one was actually specified (not null)
-            if (color !== null) {
-              willSetProperty = true;
-              propertyToSet = targetProperty;
-              valueToSet = color;
-            }
+          const weight = convertWeight(mergedStyler.weight);
+          if (weight !== null) {
+            style.geometry ??= {};
+            style.geometry.strokeWeight = weight;
           }
-        } else if (property === "strokeWeight") {
-          if (isValidGeometryProperty(id, "strokeWeight")) {
-            const weight = convertWeight(mergedStyler.weight);
-            if (weight !== null) {
-              willSetProperty = true;
-              propertyToSet = "strokeWeight";
-              valueToSet = weight;
-            }
-          }
-        }
-
-        // Only create geometry object if we're actually setting a property
-        // This will overwrite any previous value for the same property, ensuring
-        // that later rules (which are typically more specific) override earlier ones.
-        if (willSetProperty) {
-          if (!style.geometry) style.geometry = {};
-          style.geometry[propertyToSet] = valueToSet;
         }
       } else if (section === "label") {
+        const labelColorProps = [
+          "textFillColor",
+          "textStrokeColor",
+          "pinFillColor",
+        ];
         if (
-          property === "textFillColor" ||
-          property === "textStrokeColor" ||
-          property === "pinFillColor"
+          labelColorProps.includes(property) &&
+          isValidLabelProperty(id, property)
         ) {
-          // Only set if property is valid for this feature
-          if (isValidLabelProperty(id, property)) {
-            // Get any stored HSL adjustments for this feature type
-            const externalAdjustments = getHslAdjustments(
-              id,
-              hslAdjustmentsMap
-            );
-            const color = extractColor(mergedStyler, externalAdjustments);
-            // Only set color if one was actually specified (not null)
-            if (color !== null) {
-              if (!style.label) style.label = {};
-              style.label[property] = color;
-            }
+          const externalAdjustments = getHslAdjustments(id, hslAdjustmentsMap);
+          const color = extractColor(mergedStyler, externalAdjustments);
+          if (color !== null) {
+            style.label ??= {};
+            style.label[property] = color;
           }
         }
       }
     }
   } else if (elementType === "all" || !elementType) {
-    // Handle 'all' elementType - apply color to both geometry and label properties
-    // Note: This path is for rules with explicit colors, not just HSL adjustments
-    // HSL adjustments without colors are handled earlier in the function
     for (const id of targetIds) {
-      // Get any stored HSL adjustments for this feature type
       const externalAdjustments = getHslAdjustments(id, hslAdjustmentsMap);
       const color = extractColor(mergedStyler, externalAdjustments);
-      // Only set color if one was actually specified (not null)
-      if (color !== null) {
-        if (!v2StylesMap.has(id)) {
-          v2StylesMap.set(id, { id });
-        }
-        const style = v2StylesMap.get(id);
-        // Ensure required elements are present
-        ensureRequiredElements(style, id, elementType);
+      if (color === null) continue;
 
-        // Apply to geometry if feature supports it
-        if (supportsGeometry(id)) {
-          // Map to appropriate property based on feature
-          const targetProperty = mapGeometryColor(id);
-          if (isValidGeometryProperty(id, targetProperty)) {
-            if (!style.geometry) style.geometry = {};
-            style.geometry[targetProperty] = color;
-          }
-        }
+      let style = v2StylesMap.get(id);
+      if (!style) {
+        style = { id };
+        v2StylesMap.set(id, style);
+      }
 
-        // Apply to label properties if feature supports labels
-        // For 'all' elementType, apply to textFillColor as default for labels
-        if (supportsLabel(id)) {
-          // Check which label color properties are valid for this feature
-          if (isValidLabelProperty(id, "textFillColor")) {
-            if (!style.label) style.label = {};
-            style.label.textFillColor = color;
-          } else if (isValidLabelProperty(id, "pinFillColor")) {
-            // Some features use pinFillColor instead
-            if (!style.label) style.label = {};
-            style.label.pinFillColor = color;
-          }
+      ensureRequiredElements(style, id, elementType);
+
+      if (supportsGeometry(id)) {
+        const targetProperty = mapGeometryColor(id);
+        if (isValidGeometryProperty(id, targetProperty)) {
+          style.geometry ??= {};
+          style.geometry[targetProperty] = color;
+        }
+      }
+
+      if (supportsLabel(id)) {
+        style.label ??= {};
+        // Set color on all applicable label properties, not just one
+        if (isValidLabelProperty(id, "textFillColor")) {
+          style.label.textFillColor = color;
+        }
+        if (isValidLabelProperty(id, "pinFillColor")) {
+          style.label.pinFillColor = color;
         }
       }
     }
@@ -404,6 +390,7 @@ function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
 
 /**
  * Cleans up V2 styles by ensuring required elements are present and removing unsupported elements
+ * Pure function that does not mutate input
  * @param {Object} style - V2 style object
  * @returns {Object} Cleaned style object or null if style should be removed
  */
@@ -412,67 +399,19 @@ function cleanupStyle(style) {
   const hasGeometry = supportsGeometry(style.id);
   const hasLabel = supportsLabel(style.id);
 
-  // Explicitly remove geometry from features that don't support it
-  // This is a safety check to ensure label-only features never have geometry properties
-  if (!hasGeometry) {
-    // Remove any geometry properties that may have been incorrectly added
-    if (style.geometry) {
-      delete style.geometry;
-    }
+  // Only include geometry if feature supports it and it has properties
+  if (hasGeometry && style.geometry && Object.keys(style.geometry).length > 0) {
+    cleaned.geometry = style.geometry;
   }
 
-  // Explicitly remove label from features that don't support it
-  if (!hasLabel) {
-    if (style.label) {
-      delete style.label;
-    }
+  // Only include label if feature supports it and it has properties
+  if (hasLabel && style.label && Object.keys(style.label).length > 0) {
+    cleaned.label = style.label;
   }
 
-  // Ensure required elements are present based on feature capabilities
-  // For label-only features: ensure label exists with at least one property
-  if (!hasGeometry && hasLabel) {
-    if (style.label && Object.keys(style.label).length > 0) {
-      cleaned.label = style.label;
-    } else {
-      // If label-only feature has no label properties, the style object shouldn't exist
-      // This shouldn't happen if ensureRequiredElements is called correctly
-      return null;
-    }
-  }
-
-  // For geometry-only features: ensure geometry exists with at least one property
-  if (hasGeometry && !hasLabel) {
-    if (style.geometry && Object.keys(style.geometry).length > 0) {
-      cleaned.geometry = style.geometry;
-    } else {
-      // If geometry-only feature has no geometry properties, the style object shouldn't exist
-      // This shouldn't happen if ensureRequiredElements is called correctly
-      return null;
-    }
-  }
-
-  // For features supporting both: include elements that have properties
-  if (hasGeometry && hasLabel) {
-    // Only include geometry if it has properties
-    if (style.geometry && Object.keys(style.geometry).length > 0) {
-      cleaned.geometry = style.geometry;
-    }
-    // Only include label if it has properties
-    if (style.label && Object.keys(style.label).length > 0) {
-      cleaned.label = style.label;
-    }
-    // If neither element has properties, the style object shouldn't exist
-    if (!cleaned.geometry && !cleaned.label) {
-      return null;
-    }
-  }
-
-  // Final safety check: remove unsupported elements (shouldn't happen after above checks, but extra safety)
-  if (!hasGeometry && cleaned.geometry) {
-    delete cleaned.geometry;
-  }
-  if (!hasLabel && cleaned.label) {
-    delete cleaned.label;
+  // Return null if no valid properties remain
+  if (!cleaned.geometry && !cleaned.label) {
+    return null;
   }
 
   return cleaned;
@@ -484,7 +423,6 @@ function cleanupStyle(style) {
  * @returns {Object} V2 style object with variant and styles array
  */
 export function convertV1ToV2(v1Input) {
-  // Parse input if it's a string
   let v1Styles;
   try {
     v1Styles = typeof v1Input === "string" ? JSON.parse(v1Input) : v1Input;
@@ -492,35 +430,21 @@ export function convertV1ToV2(v1Input) {
     throw new Error(`Invalid JSON input: ${error.message}`);
   }
 
-  // Validate input structure
   if (!Array.isArray(v1Styles)) {
     throw new Error("V1 input must be an array of style rules");
   }
 
-  // Detect variant
   const variant = detectVariant(v1Styles);
-
-  // Process all V1 rules
   const v2StylesMap = new Map();
-  const hslAdjustmentsMap = new Map(); // Track HSL adjustments per feature type
+  const hslAdjustmentsMap = new Map();
 
   for (const rule of v1Styles) {
     processV1Rule(rule, v2StylesMap, hslAdjustmentsMap);
   }
 
-  // Convert map to array and clean up
   const styles = Array.from(v2StylesMap.values())
     .map(cleanupStyle)
-    .filter((style) => {
-      // Only include styles that are not null and have at least geometry or label properties
-      return style !== null && (style.geometry || style.label);
-    });
+    .filter((style) => style !== null && (style.geometry || style.label));
 
-  // Build V2 output
-  const v2Output = {
-    variant,
-    styles,
-  };
-
-  return v2Output;
+  return { variant, styles };
 }
