@@ -6,10 +6,11 @@
 /**
  * Maps V1 featureType to V2 id
  * Only includes feature IDs that exist in the schema
- * @type {Object.<string, string|string[]>}
+ * @type {Readonly<Object.<string, string|string[]>>}
  */
-const featureTypeMap = {
+const featureTypeMap = Object.freeze({
   poi: "pointOfInterest",
+  "poi.attraction": "pointOfInterest.entertainment.touristAttraction",
   "poi.park": "pointOfInterest.recreation.park",
   "poi.sports_complex": "pointOfInterest.recreation.sportsComplex",
   "poi.place_of_worship": "pointOfInterest.other.placeOfWorship",
@@ -27,19 +28,21 @@ const featureTypeMap = {
   "road.arterial": "infrastructure.roadNetwork.road.arterial",
   "road.local": "infrastructure.roadNetwork.road.local",
   landscape: "natural.land",
+  "landscape.man_made": "infrastructure.building",
+  "landscape.natural.landcover": "natural.land.landCover",
   water: "natural.water",
   transit: "infrastructure.transitStation",
   "transit.station": "infrastructure.transitStation",
   "transit.station.airport": "pointOfInterest.transit.airport",
   "transit.station.bus": "infrastructure.transitStation.busStation",
   "transit.station.rail": "infrastructure.transitStation.railStation",
-};
+});
 
 /**
  * Maps V1 elementType to V2 property paths
- * @type {Object.<string, string>}
+ * @type {Readonly<Object.<string, string>>}
  */
-const elementTypeMap = {
+const elementTypeMap = Object.freeze({
   "geometry.fill": "geometry.fillColor",
   "geometry.stroke": "geometry.strokeColor",
   geometry: "geometry.color",
@@ -48,17 +51,17 @@ const elementTypeMap = {
   "labels.icon": "label.pinFillColor",
   labels: "label.visible",
   "labels.text": "label.visible",
-};
+});
 
 /**
  * Maps V1 visibility values to V2 boolean
- * @type {Object.<string, boolean>}
+ * @type {Readonly<Object.<string, boolean>>}
  */
-const visibilityMap = {
+const visibilityMap = Object.freeze({
   on: true,
   off: false,
   simplified: true,
-};
+});
 
 /**
  * Gets V2 id from V1 featureType
@@ -67,9 +70,9 @@ const visibilityMap = {
  */
 export function getV2Id(featureType) {
   if (!featureType || featureType === "all") {
-    return null; // 'all' needs special handling
+    return null;
   }
-  return featureTypeMap[featureType] || null;
+  return featureTypeMap[featureType] ?? null;
 }
 
 /**
@@ -79,9 +82,9 @@ export function getV2Id(featureType) {
  */
 export function getV2PropertyPath(elementType) {
   if (!elementType || elementType === "all") {
-    return null; // 'all' needs special handling
+    return null;
   }
-  return elementTypeMap[elementType] || null;
+  return elementTypeMap[elementType] ?? null;
 }
 
 /**
@@ -94,16 +97,22 @@ export function getV2Visibility(visibility) {
     return null;
   }
   const normalized = String(visibility).toLowerCase();
-  return visibilityMap[normalized] !== undefined
-    ? visibilityMap[normalized]
-    : null;
+  return visibilityMap[normalized] ?? null;
 }
 
 /**
  * Gets all V2 ids that should be affected by 'all' featureType
- * @returns {string[]} Array of all V2 ids
+ * Handles both string and array values from featureTypeMap
+ * @returns {readonly string[]} Array of all V2 ids
  */
 export function getAllV2Ids() {
-  return Object.values(featureTypeMap).filter((id) => typeof id === "string");
+  const ids = [];
+  for (const value of Object.values(featureTypeMap)) {
+    if (Array.isArray(value)) {
+      ids.push(...value);
+    } else if (typeof value === "string") {
+      ids.push(value);
+    }
+  }
+  return ids;
 }
-

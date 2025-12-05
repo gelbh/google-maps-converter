@@ -6,9 +6,9 @@
 
 /**
  * Valid geometry properties for each feature type
- * @type {Object.<string, string[]>}
+ * @type {Readonly<Object.<string, string[]>>}
  */
-const geometryProperties = {
+const geometryProperties = Object.freeze({
   // pointOfInterest and sub-features
   pointOfInterest: ["visible", "fillColor", "fillOpacity"],
   "pointOfInterest.emergency": ["visible", "fillColor", "fillOpacity"],
@@ -25,6 +25,8 @@ const geometryProperties = {
   "pointOfInterest.other.placeOfWorship": [], // Explicitly no geometry
   "pointOfInterest.other.school": [], // Explicitly no geometry
   "pointOfInterest.other.government": [], // Explicitly no geometry
+  // pointOfInterest.entertainment.touristAttraction - no geometry, only labels
+  "pointOfInterest.entertainment.touristAttraction": [], // Explicitly no geometry
 
   // political and sub-features
   political: ["visible", "fillColor"],
@@ -48,6 +50,7 @@ const geometryProperties = {
   "natural.archipelago": ["visible", "fillColor", "fillOpacity"],
   "natural.island": ["visible", "fillColor", "fillOpacity"],
   "natural.land": ["visible", "fillColor", "fillOpacity"],
+  "natural.land.landCover": ["visible", "fillColor", "fillOpacity"],
   "natural.water": ["visible", "fillColor", "fillOpacity"],
   "natural.base": ["visible", "fillColor", "fillOpacity"],
 
@@ -94,17 +97,25 @@ const geometryProperties = {
     "strokeOpacity",
     "strokeWeight",
   ],
+  "infrastructure.building": [
+    "visible",
+    "fillColor",
+    "fillOpacity",
+    "strokeColor",
+    "strokeOpacity",
+    "strokeWeight",
+  ],
   // infrastructure.transitStation and sub-features - no geometry, only labels
   "infrastructure.transitStation": [], // Explicitly no geometry
   "infrastructure.transitStation.busStation": [], // Explicitly no geometry
   "infrastructure.transitStation.railStation": [], // Explicitly no geometry
-};
+});
 
 /**
  * Valid label properties for each feature type
- * @type {Object.<string, string[]>}
+ * @type {Readonly<Object.<string, string[]>>}
  */
-const labelProperties = {
+const labelProperties = Object.freeze({
   // pointOfInterest and sub-features support pinFillColor
   pointOfInterest: [
     "visible",
@@ -123,6 +134,14 @@ const labelProperties = {
     "textStrokeOpacity",
   ],
   "pointOfInterest.entertainment": [
+    "visible",
+    "pinFillColor",
+    "textFillColor",
+    "textFillOpacity",
+    "textStrokeColor",
+    "textStrokeOpacity",
+  ],
+  "pointOfInterest.entertainment.touristAttraction": [
     "visible",
     "pinFillColor",
     "textFillColor",
@@ -306,6 +325,13 @@ const labelProperties = {
     "textStrokeColor",
     "textStrokeOpacity",
   ],
+  "infrastructure.building": [
+    "visible",
+    "textFillColor",
+    "textFillOpacity",
+    "textStrokeColor",
+    "textStrokeOpacity",
+  ],
 
   // natural.water supports labels
   "natural.water": [
@@ -341,7 +367,39 @@ const labelProperties = {
     "textStrokeColor",
     "textStrokeOpacity",
   ],
-};
+});
+
+/**
+ * Gets parent feature IDs for a given feature ID
+ * @param {string} featureId - V2 feature ID
+ * @returns {string[]} Array of parent feature IDs (most specific first)
+ */
+function getParentFeatureIds(featureId) {
+  const parts = featureId.split(".");
+  const parents = [];
+  for (let i = parts.length - 1; i > 0; i--) {
+    parents.push(parts.slice(0, i).join("."));
+  }
+  return parents;
+}
+
+/**
+ * Checks if a property is valid for a feature by checking the feature and its parents
+ * @param {Object.<string, string[]>} propertiesMap - Map of feature IDs to valid properties
+ * @param {string} featureId - V2 feature ID
+ * @param {string} property - Property name
+ * @returns {boolean} True if valid
+ */
+function isValidProperty(propertiesMap, featureId, property) {
+  if (propertiesMap[featureId]?.includes(property)) {
+    return true;
+  }
+
+  const parents = getParentFeatureIds(featureId);
+  return parents.some((parentId) =>
+    propertiesMap[parentId]?.includes(property)
+  );
+}
 
 /**
  * Checks if a geometry property is valid for a feature
@@ -350,21 +408,7 @@ const labelProperties = {
  * @returns {boolean} True if valid
  */
 export function isValidGeometryProperty(featureId, property) {
-  // Check exact match first
-  if (geometryProperties[featureId]) {
-    return geometryProperties[featureId].includes(property);
-  }
-
-  // Check parent features (e.g., pointOfInterest.recreation.park -> pointOfInterest.recreation -> pointOfInterest)
-  const parts = featureId.split(".");
-  for (let i = parts.length - 1; i > 0; i--) {
-    const parentId = parts.slice(0, i).join(".");
-    if (geometryProperties[parentId]) {
-      return geometryProperties[parentId].includes(property);
-    }
-  }
-
-  return false;
+  return isValidProperty(geometryProperties, featureId, property);
 }
 
 /**
@@ -374,21 +418,29 @@ export function isValidGeometryProperty(featureId, property) {
  * @returns {boolean} True if valid
  */
 export function isValidLabelProperty(featureId, property) {
-  // Check exact match first
-  if (labelProperties[featureId]) {
-    return labelProperties[featureId].includes(property);
+  return isValidProperty(labelProperties, featureId, property);
+}
+
+/**
+ * Checks if a feature supports properties from a given map
+ * @param {Object.<string, string[]>} propertiesMap - Map of feature IDs to valid properties
+ * @param {string} featureId - V2 feature ID
+ * @returns {boolean} True if feature supports properties
+ */
+function supportsProperties(propertiesMap, featureId) {
+  if (Object.hasOwn(propertiesMap, featureId)) {
+    const props = propertiesMap[featureId];
+    return Array.isArray(props) && props.length > 0;
   }
 
-  // Check parent features (e.g., pointOfInterest.recreation.park -> pointOfInterest.recreation -> pointOfInterest)
-  const parts = featureId.split(".");
-  for (let i = parts.length - 1; i > 0; i--) {
-    const parentId = parts.slice(0, i).join(".");
-    if (labelProperties[parentId]) {
-      return labelProperties[parentId].includes(property);
+  const parents = getParentFeatureIds(featureId);
+  return parents.some((parentId) => {
+    if (Object.hasOwn(propertiesMap, parentId)) {
+      const props = propertiesMap[parentId];
+      return Array.isArray(props) && props.length > 0;
     }
-  }
-
-  return false;
+    return false;
+  });
 }
 
 /**
@@ -397,37 +449,7 @@ export function isValidLabelProperty(featureId, property) {
  * @returns {boolean} True if feature supports labels
  */
 export function supportsLabel(featureId) {
-  // Check exact match first - if explicitly set to empty array, return false
-  if (labelProperties.hasOwnProperty(featureId)) {
-    const props = labelProperties[featureId];
-    // If it's an empty array or null, explicitly no label support
-    if (Array.isArray(props) && props.length === 0) {
-      return false;
-    }
-    if (props === null || props === undefined) {
-      return false;
-    }
-    return true;
-  }
-
-  // Check parent features
-  const parts = featureId.split(".");
-  for (let i = parts.length - 1; i > 0; i--) {
-    const parentId = parts.slice(0, i).join(".");
-    if (labelProperties.hasOwnProperty(parentId)) {
-      const props = labelProperties[parentId];
-      // If parent explicitly has no labels (empty array), return false
-      if (Array.isArray(props) && props.length === 0) {
-        return false;
-      }
-      if (props === null || props === undefined) {
-        return false;
-      }
-      return true;
-    }
-  }
-
-  return false;
+  return supportsProperties(labelProperties, featureId);
 }
 
 /**
@@ -436,37 +458,7 @@ export function supportsLabel(featureId) {
  * @returns {boolean} True if feature supports geometry
  */
 export function supportsGeometry(featureId) {
-  // Check exact match first - if explicitly set to empty array, return false
-  if (geometryProperties.hasOwnProperty(featureId)) {
-    const props = geometryProperties[featureId];
-    // If it's an empty array or null, explicitly no geometry support
-    if (Array.isArray(props) && props.length === 0) {
-      return false;
-    }
-    if (props === null || props === undefined) {
-      return false;
-    }
-    return true;
-  }
-
-  // Check parent features
-  const parts = featureId.split(".");
-  for (let i = parts.length - 1; i > 0; i--) {
-    const parentId = parts.slice(0, i).join(".");
-    if (geometryProperties.hasOwnProperty(parentId)) {
-      const props = geometryProperties[parentId];
-      // If parent explicitly has no geometry (empty array), return false
-      if (Array.isArray(props) && props.length === 0) {
-        return false;
-      }
-      if (props === null || props === undefined) {
-        return false;
-      }
-      return true;
-    }
-  }
-
-  return false;
+  return supportsProperties(geometryProperties, featureId);
 }
 
 /**
@@ -497,38 +489,25 @@ export function ensureRequiredElements(style, id, elementType) {
   const hasGeometry = supportsGeometry(id);
   const hasLabel = supportsLabel(id);
 
-  // For label-only features, always ensure label exists
   if (!hasGeometry && hasLabel) {
-    if (!style.label) {
-      style.label = {};
-    }
+    style.label ??= {};
+    return;
   }
 
-  // For geometry-only features, always ensure geometry exists
   if (hasGeometry && !hasLabel) {
-    if (!style.geometry) {
-      style.geometry = {};
-    }
+    style.geometry ??= {};
+    return;
   }
 
-  // For features supporting both, create elements based on elementType context
   if (hasGeometry && hasLabel) {
-    // If elementType is "all" or not specified, create both
-    if (!elementType || elementType === "all") {
-      if (!style.geometry) {
-        style.geometry = {};
-      }
-      if (!style.label) {
-        style.label = {};
-      }
+    const isAll = !elementType || elementType === "all";
+    if (isAll) {
+      style.geometry ??= {};
+      style.label ??= {};
     } else if (elementType.startsWith("geometry")) {
-      if (!style.geometry) {
-        style.geometry = {};
-      }
+      style.geometry ??= {};
     } else if (elementType.startsWith("labels")) {
-      if (!style.label) {
-        style.label = {};
-      }
+      style.label ??= {};
     }
   }
 }
