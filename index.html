@@ -12,8 +12,8 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css"
     />
-    <script type="module" crossorigin src="/google-maps-converter/assets/index-cIH-3_K7.js"></script>
-    <link rel="stylesheet" crossorigin href="/google-maps-converter/assets/index-CeuPgnv0.css">
+    <script type="module" crossorigin src="/google-maps-converter/assets/index-DxEYd5SD.js"></script>
+    <link rel="stylesheet" crossorigin href="/google-maps-converter/assets/index-CcAPY26b.css">
   </head>
   <body class="min-h-screen bg-slate-900 text-foreground p-4">
     <div
@@ -23,7 +23,10 @@
         class="bg-black/30 backdrop-blur-md text-white p-4 border-b border-white/10"
       >
         <div class="flex justify-between items-center mb-2 gap-4">
-          <h1 class="text-2xl md:text-3xl font-semibold flex-1 text-center">
+          <h1
+            class="font-semibold flex-1 text-center"
+            style="font-size: clamp(1.5rem, 2.5vw + 0.5rem, 2rem)"
+          >
             Google Maps V1 to V2 Style Converter
           </h1>
           <a
@@ -47,24 +50,36 @@
             </svg>
           </a>
         </div>
-        <p class="text-base opacity-95 max-w-3xl mx-auto text-center">
+        <p
+          class="opacity-95 max-w-3xl mx-auto text-center"
+          style="font-size: clamp(0.875rem, 1vw + 0.5rem, 1rem)"
+        >
           Convert Google Maps JavaScript API V1 style JSON to V2 CBMS format.
           Paste your V1 JSON or load an example to get started.
         </p>
       </header>
 
       <div
-        class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-1 md:gap-2 p-4 pb-2"
+        class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] p-4 pb-2"
+        style="gap: clamp(0.25rem, 0.5vw + 0.25rem, 0.5rem)"
       >
         <div
           class="flex flex-col bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20"
         >
-          <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
-            <h2 class="text-xl font-semibold text-white">V1 Input</h2>
+          <div
+            class="flex justify-between items-center mb-2 flex-wrap gap-2"
+            style="container-type: inline-size"
+          >
+            <h2
+              class="font-semibold text-white"
+              style="font-size: clamp(1.125rem, 1.5vw + 0.75rem, 1.25rem)"
+            >
+              V1 Input
+            </h2>
             <div class="flex gap-2 flex-wrap items-center">
               <label
                 for="file-input"
-                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors inline-block"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors inline-block min-h-[48px] min-w-[48px] flex items-center justify-center"
                 >Upload File</label
               >
               <input
@@ -75,7 +90,7 @@
               />
               <button
                 id="open-style-modal-btn"
-                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 min-h-[48px] min-w-[48px] flex items-center justify-center"
               >
                 Browse Snazzy Maps Styles
               </button>
@@ -83,7 +98,7 @@
                 href="https://snazzymaps.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors inline-block"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors inline-block min-h-[48px] min-w-[48px] flex items-center justify-center"
                 title="Visit Snazzy Maps"
               >
                 Visit Snazzy Maps
@@ -92,7 +107,11 @@
           </div>
           <div
             id="v1-input-wrapper"
-            class="w-full h-[300px] border-2 border-white/10 rounded-md overflow-hidden bg-black/20 backdrop-blur-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+            class="w-full border-2 border-white/10 rounded-md overflow-hidden bg-black/20 backdrop-blur-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+            style="
+              min-height: clamp(300px, 35dvh, 500px);
+              height: clamp(300px, 35dvh, 500px);
+            "
           >
             <textarea
               id="v1-input"
@@ -106,7 +125,7 @@
           <div class="flex flex-col items-center gap-2">
             <button
               id="convert-btn"
-              class="px-4 py-3 rounded-md text-base font-semibold cursor-pointer bg-white/30 text-white hover:bg-white/40 backdrop-blur-md border-2 border-white/30 hover:border-white/50 transition-all hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2"
+              class="px-4 py-3 rounded-md text-base font-semibold cursor-pointer bg-white/30 text-white hover:bg-white/40 backdrop-blur-md border-2 border-white/30 hover:border-white/50 transition-all hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2 min-h-[48px] min-w-[48px]"
             >
               <span>Convert</span>
               <svg
@@ -136,7 +155,7 @@
         <div class="md:hidden flex justify-center -mt-1 mb-1">
           <button
             id="convert-btn-mobile"
-            class="px-8 py-3 rounded-md text-base font-semibold cursor-pointer bg-white/30 text-white hover:bg-white/40 backdrop-blur-md border-2 border-white/30 hover:border-white/50 transition-all hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2"
+            class="px-8 py-3 rounded-md text-base font-semibold cursor-pointer bg-white/30 text-white hover:bg-white/40 backdrop-blur-md border-2 border-white/30 hover:border-white/50 transition-all hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2 min-h-[48px] min-w-[48px]"
           >
             <span>Convert</span>
             <svg
@@ -166,8 +185,16 @@
         <div
           class="flex flex-col bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20"
         >
-          <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
-            <h2 class="text-xl font-semibold text-white">V2 Output</h2>
+          <div
+            class="flex justify-between items-center mb-2 flex-wrap gap-2"
+            style="container-type: inline-size"
+          >
+            <h2
+              class="font-semibold text-white"
+              style="font-size: clamp(1.125rem, 1.5vw + 0.75rem, 1.25rem)"
+            >
+              V2 Output
+            </h2>
             <div class="flex gap-2 flex-wrap items-center">
               <span
                 id="validation-status"
@@ -175,13 +202,13 @@
               ></span>
               <button
                 id="copy-btn"
-                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 min-h-[48px] min-w-[48px] flex items-center justify-center"
               >
                 Copy to Clipboard
               </button>
               <button
                 id="download-btn"
-                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 min-h-[48px] min-w-[48px] flex items-center justify-center"
               >
                 Download JSON
               </button>
@@ -189,7 +216,11 @@
           </div>
           <div
             id="v2-output-wrapper"
-            class="w-full h-[300px] border-2 border-white/10 rounded-md overflow-hidden bg-black/20 backdrop-blur-sm"
+            class="w-full border-2 border-white/10 rounded-md overflow-hidden bg-black/20 backdrop-blur-sm"
+            style="
+              min-height: clamp(300px, 35dvh, 500px);
+              height: clamp(300px, 35dvh, 500px);
+            "
           >
             <textarea
               id="v2-output"
@@ -203,6 +234,10 @@
       <!-- Instructions Section -->
       <div
         class="m-4 p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg"
+        style="
+          padding: clamp(0.75rem, 1vw + 0.5rem, 1rem);
+          margin: clamp(0.75rem, 1vw + 0.5rem, 1rem);
+        "
       >
         <button
           id="instructions-toggle"
@@ -210,7 +245,10 @@
           aria-expanded="false"
           aria-controls="instructions-content"
         >
-          <h3 class="text-lg font-semibold flex items-center gap-2">
+          <h3
+            class="font-semibold flex items-center gap-2"
+            style="font-size: clamp(1rem, 1.25vw + 0.75rem, 1.125rem)"
+          >
             <svg
               class="w-5 h-5"
               fill="none"
@@ -393,21 +431,33 @@
       <div
         id="error-display"
         class="hidden m-4 p-4 bg-red-900/30 backdrop-blur-sm border-2 border-red-500/50 rounded-md text-red-200 font-mono text-sm whitespace-pre-wrap"
+        style="
+          padding: clamp(0.75rem, 1vw + 0.5rem, 1rem);
+          margin: clamp(0.75rem, 1vw + 0.5rem, 1rem);
+        "
       ></div>
 
       <div
         id="validation-errors"
-        class="hidden m-4 p-4 bg-yellow-900/30 backdrop-blur-sm border-2 border-yellow-500/50 rounded-md max-h-[600px] overflow-y-auto"
+        class="hidden m-4 p-4 bg-yellow-900/30 backdrop-blur-sm border-2 border-yellow-500/50 rounded-md overflow-y-auto"
+        style="
+          max-height: min(600px, 80dvh);
+          padding: clamp(0.75rem, 1vw + 0.5rem, 1rem);
+          margin: clamp(0.75rem, 1vw + 0.5rem, 1rem);
+        "
       >
         <div
           class="flex justify-between items-center mb-4 pb-4 border-b-2 border-yellow-500/50"
         >
-          <h3 class="text-yellow-200 text-xl font-semibold m-0">
+          <h3
+            class="text-yellow-200 font-semibold m-0"
+            style="font-size: clamp(1.125rem, 3vw, 1.25rem)"
+          >
             Validation Errors
           </h3>
           <button
             id="close-validation-errors"
-            class="bg-transparent border-none text-2xl text-yellow-200 cursor-pointer p-0 w-8 h-8 flex items-center justify-center rounded-full transition-colors hover:bg-yellow-800/50 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            class="bg-transparent border-none text-2xl text-yellow-200 cursor-pointer p-0 flex items-center justify-center rounded-full transition-colors hover:bg-yellow-800/50 focus:outline-none focus:ring-2 focus:ring-yellow-500 min-h-[48px] min-w-[48px]"
           >
             ×
           </button>
@@ -435,18 +485,24 @@
 
       <!-- Modal Content -->
       <div
-        class="relative w-full max-w-6xl max-h-[90vh] bg-black/40 backdrop-blur-lg rounded-lg shadow-2xl border border-white/10 flex flex-col overflow-hidden"
+        class="relative w-full max-w-6xl bg-black/40 backdrop-blur-lg rounded-lg shadow-2xl border border-white/10 flex flex-col overflow-hidden"
+        style="max-height: 90dvh; container-type: size"
       >
         <!-- Modal Header -->
         <div
           class="flex items-center justify-between p-6 border-b border-white/10 bg-black/30"
+          style="padding: clamp(0.75rem, 1.5vw + 0.5rem, 1.5rem)"
         >
-          <h2 id="modal-title" class="text-2xl font-semibold text-white">
+          <h2
+            id="modal-title"
+            class="font-semibold text-white"
+            style="font-size: clamp(1.25rem, 2vw + 0.75rem, 1.5rem)"
+          >
             Browse Snazzy Maps Styles
           </h2>
           <button
             id="close-style-modal-btn"
-            class="text-white/70 hover:text-white transition-colors p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/50"
+            class="text-white/70 hover:text-white transition-colors p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/50 min-h-[48px] min-w-[48px] flex items-center justify-center"
             aria-label="Close modal"
           >
             <svg
@@ -466,12 +522,23 @@
         </div>
 
         <!-- Modal Body -->
-        <div id="style-modal-body" class="flex-1 overflow-hidden flex">
+        <div
+          id="style-modal-body"
+          class="flex-1 overflow-hidden flex"
+          style="container-type: inline-size"
+        >
           <!-- Left Sidebar: Search, Sort, and Filters -->
           <div
             class="w-80 border-r border-white/10 bg-black/30 backdrop-blur-lg flex flex-col overflow-hidden"
+            style="container-type: inline-size"
           >
-            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+            <div
+              class="flex-1 overflow-y-auto p-4 space-y-4"
+              style="
+                padding: clamp(0.75rem, 1.5vw, 1rem);
+                gap: clamp(0.75rem, 1.5vw, 1rem);
+              "
+            >
               <!-- Search Input -->
               <div>
                 <label
@@ -518,7 +585,7 @@
               <div>
                 <button
                   id="toggle-filters-btn"
-                  class="w-full flex items-center justify-between gap-2 px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 transition-colors"
+                  class="w-full flex items-center justify-between gap-2 px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 transition-colors min-h-[48px]"
                   aria-expanded="true"
                   aria-controls="filter-controls-section"
                 >
@@ -582,7 +649,7 @@
                 <div>
                   <button
                     id="clear-filters-btn"
-                    class="w-full px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 transition-colors"
+                    class="w-full px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 transition-colors min-h-[48px] flex items-center justify-center"
                   >
                     Clear Filters
                   </button>
@@ -592,8 +659,14 @@
           </div>
 
           <!-- Right Side: Results Area -->
-          <div class="flex-1 flex flex-col overflow-hidden">
-            <div class="flex-1 overflow-y-auto p-4">
+          <div
+            class="flex-1 flex flex-col overflow-hidden"
+            style="container-type: inline-size"
+          >
+            <div
+              class="flex-1 overflow-y-auto p-4"
+              style="padding: clamp(0.75rem, 1vw + 0.5rem, 1rem)"
+            >
               <!-- Loading State -->
               <div
                 id="style-modal-loading"
@@ -643,17 +716,22 @@
               <div
                 id="style-results-grid"
                 class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                style="container-type: inline-size"
               ></div>
             </div>
 
             <!-- Pagination Controls -->
             <div
               class="p-4 border-t border-white/10 bg-black/20 flex items-center justify-between flex-wrap gap-4"
+              style="
+                padding: clamp(0.75rem, 1vw + 0.5rem, 1rem);
+                gap: clamp(0.75rem, 1vw + 0.5rem, 1rem);
+              "
             >
               <div class="flex items-center gap-2">
                 <button
                   id="pagination-prev"
-                  class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] min-w-[48px] flex items-center justify-center"
                   disabled
                 >
                   Previous
@@ -663,7 +741,7 @@
                 </span>
                 <button
                   id="pagination-next"
-                  class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm border border-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[48px] min-w-[48px] flex items-center justify-center"
                   disabled
                 >
                   Next
