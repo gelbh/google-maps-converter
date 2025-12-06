@@ -3,7 +3,12 @@
  * Converts V1 style JSON (featureType, elementType, stylers) to V2 CBMS format
  */
 
-import { hexToHsl, normalizeHex, extractColor } from "../utils/color-utils.js";
+import {
+  hexToHsl,
+  normalizeHex,
+  extractColor,
+  applyHslAdjustments,
+} from "../utils/color-utils.js";
 import {
   getV2Id,
   getV2PropertyPath,
@@ -317,8 +322,35 @@ function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
           property === "color" ? mapGeometryColor(id) : property;
 
         if (isColorProperty && isValidGeometryProperty(id, targetProperty)) {
-          const externalAdjustments = getHslAdjustments(id, hslAdjustmentsMap);
-          const color = extractColor(mergedStyler, externalAdjustments);
+          // Skip external HSL adjustments for specific elementType rules with explicit colors
+          const externalAdjustments =
+            !isGeneralRule && hasExplicitColor
+              ? null
+              : getHslAdjustments(id, hslAdjustmentsMap);
+          let color = extractColor(mergedStyler, externalAdjustments);
+
+          // If no explicit color but HSL adjustments exist, try to apply to existing color
+          if (color === null && hasHslAdjustments) {
+            style.geometry ??= {};
+            const existingColor = style.geometry[targetProperty];
+            if (existingColor) {
+              // Apply HSL adjustments from current rule to existing color
+              color = applyHslAdjustments(
+                existingColor,
+                mergedStyler.lightness,
+                mergedStyler.saturation
+              );
+              // Apply external adjustments if present
+              if (externalAdjustments) {
+                color = applyHslAdjustments(
+                  color,
+                  externalAdjustments.lightness,
+                  externalAdjustments.saturation
+                );
+              }
+            }
+          }
+
           if (color !== null) {
             style.geometry ??= {};
             style.geometry[targetProperty] = color;
@@ -343,8 +375,35 @@ function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
           labelColorProps.includes(property) &&
           isValidLabelProperty(id, property)
         ) {
-          const externalAdjustments = getHslAdjustments(id, hslAdjustmentsMap);
-          const color = extractColor(mergedStyler, externalAdjustments);
+          // Skip external HSL adjustments for specific elementType rules with explicit colors
+          const externalAdjustments =
+            !isGeneralRule && hasExplicitColor
+              ? null
+              : getHslAdjustments(id, hslAdjustmentsMap);
+          let color = extractColor(mergedStyler, externalAdjustments);
+
+          // If no explicit color but HSL adjustments exist, try to apply to existing color
+          if (color === null && hasHslAdjustments) {
+            style.label ??= {};
+            const existingColor = style.label[property];
+            if (existingColor) {
+              // Apply HSL adjustments from current rule to existing color
+              color = applyHslAdjustments(
+                existingColor,
+                mergedStyler.lightness,
+                mergedStyler.saturation
+              );
+              // Apply external adjustments if present
+              if (externalAdjustments) {
+                color = applyHslAdjustments(
+                  color,
+                  externalAdjustments.lightness,
+                  externalAdjustments.saturation
+                );
+              }
+            }
+          }
+
           if (color !== null) {
             style.label ??= {};
             style.label[property] = color;
@@ -355,7 +414,75 @@ function processV1Rule(v1Rule, v2StylesMap, hslAdjustmentsMap) {
   } else if (elementType === "all" || !elementType) {
     for (const id of targetIds) {
       const externalAdjustments = getHslAdjustments(id, hslAdjustmentsMap);
-      const color = extractColor(mergedStyler, externalAdjustments);
+      let color = extractColor(mergedStyler, externalAdjustments);
+
+      // If no explicit color but HSL adjustments exist, try to apply to existing colors
+      if (color === null && hasHslAdjustments) {
+        let style = v2StylesMap.get(id);
+        if (!style) {
+          style = { id };
+          v2StylesMap.set(id, style);
+        }
+
+        ensureRequiredElements(style, id, elementType);
+
+        // Check geometry for existing color
+        if (supportsGeometry(id)) {
+          const targetProperty = mapGeometryColor(id);
+          if (isValidGeometryProperty(id, targetProperty)) {
+            style.geometry ??= {};
+            const existingGeometryColor = style.geometry[targetProperty];
+            if (existingGeometryColor) {
+              // Apply HSL adjustments from current rule to existing geometry color
+              let adjustedColor = applyHslAdjustments(
+                existingGeometryColor,
+                mergedStyler.lightness,
+                mergedStyler.saturation
+              );
+              // Apply external adjustments if present
+              if (externalAdjustments) {
+                adjustedColor = applyHslAdjustments(
+                  adjustedColor,
+                  externalAdjustments.lightness,
+                  externalAdjustments.saturation
+                );
+              }
+              style.geometry[targetProperty] = adjustedColor;
+            }
+          }
+        }
+
+        // Check labels for existing colors
+        if (supportsLabel(id)) {
+          style.label ??= {};
+          const labelColorProps = ["textFillColor", "pinFillColor"];
+          for (const prop of labelColorProps) {
+            if (isValidLabelProperty(id, prop)) {
+              const existingLabelColor = style.label[prop];
+              if (existingLabelColor) {
+                // Apply HSL adjustments from current rule to existing label color
+                let adjustedColor = applyHslAdjustments(
+                  existingLabelColor,
+                  mergedStyler.lightness,
+                  mergedStyler.saturation
+                );
+                // Apply external adjustments if present
+                if (externalAdjustments) {
+                  adjustedColor = applyHslAdjustments(
+                    adjustedColor,
+                    externalAdjustments.lightness,
+                    externalAdjustments.saturation
+                  );
+                }
+                style.label[prop] = adjustedColor;
+              }
+            }
+          }
+        }
+
+        continue;
+      }
+
       if (color === null) continue;
 
       let style = v2StylesMap.get(id);
