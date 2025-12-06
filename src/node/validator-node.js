@@ -19,7 +19,7 @@ let validate = null;
  * Initializes AJV and loads the schema
  * @returns {Promise<void>}
  */
-async function initializeValidator() {
+const initializeValidator = async () => {
   if (ajvInstance && schema) {
     return; // Already initialized
   }
@@ -36,7 +36,7 @@ async function initializeValidator() {
   } catch (error) {
     throw new Error(`Failed to load validation schema: ${error.message}`);
   }
-}
+};
 
 /**
  * Validates V2 JSON against the schema
@@ -65,7 +65,7 @@ export async function validateV2(v2Json) {
  * @param {Array} errors - AJV validation errors
  * @returns {string} Formatted error message
  */
-export function formatValidationErrors(errors) {
+export const formatValidationErrors = (errors) => {
   if (!errors?.length) {
     return "Unknown validation error";
   }
@@ -77,4 +77,4 @@ export function formatValidationErrors(errors) {
       return path ? `${path}: ${message}` : message;
     })
     .join("\n");
-}
+};

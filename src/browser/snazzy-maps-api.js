@@ -13,7 +13,7 @@ const API_BASE_URL = "https://snazzymaps.com/explore.json";
  * and can be passed either as a query parameter (key) or header (X-ApiKey).
  * We use the query parameter to avoid CORS preflight issues.
  */
-function getApiKey() {
+const getApiKey = () => {
   const apiKey = import.meta.env.VITE_SNAZZY_MAPS_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -21,14 +21,14 @@ function getApiKey() {
     );
   }
   return apiKey;
-}
+};
 
 /**
  * Builds URLSearchParams with API key and optional parameters
  * @param {Object} options - Query parameters
  * @returns {URLSearchParams} Configured URLSearchParams
  */
-function buildSearchParams(options) {
+const buildSearchParams = (options) => {
   const params = new URLSearchParams();
   params.append("key", getApiKey());
 
@@ -50,7 +50,7 @@ function buildSearchParams(options) {
   }
 
   return params;
-}
+};
 
 /**
  * Handles API response and extracts error message
@@ -58,14 +58,14 @@ function buildSearchParams(options) {
  * @returns {Promise<Object>} Parsed JSON response
  * @throws {Error} If response is not OK
  */
-async function handleApiResponse(response) {
+const handleApiResponse = async (response) => {
   if (!response.ok) {
     throw new Error(
       `Snazzy Maps API error: ${response.status} ${response.statusText}`
     );
   }
   return response.json();
-}
+};
 
 /**
  * Fetches styles from Snazzy Maps API
@@ -107,7 +107,7 @@ export async function fetchStyles(options = {}) {
  * @param {Object|Array} data - API response data
  * @returns {Object} Style data object
  */
-function extractStyleData(data) {
+const extractStyleData = (data) => {
   if (Array.isArray(data)) {
     return data[0] ?? data;
   }
@@ -118,7 +118,7 @@ function extractStyleData(data) {
     return data.data;
   }
   return data;
-}
+};
 
 export async function fetchStyleById(styleId) {
   try {
@@ -221,10 +221,10 @@ const COMMON_COLORS = [
   "brown",
 ];
 
-function isColorLike(tag) {
+const isColorLike = (tag) => {
   const colorLike = tag.toLowerCase();
   return COMMON_COLORS.some((c) => colorLike.includes(c));
-}
+};
 
 export function extractColorsFromStyles(styles) {
   const colorsSet = new Set();
@@ -242,16 +242,14 @@ export function extractColorsFromStyles(styles) {
 }
 
 /**
- * Fetches a larger set of styles to extract available tags and colors
- * Note: This is a helper that fetches multiple pages to build a comprehensive list
- * @param {number} [maxPages=5] - Maximum number of pages to fetch
- * @returns {Promise<{tags: Array<string>, colors: Array<string>}>}
+ * Extracts styles array from API response
+ * @param {Object|Array} response - API response
+ * @returns {Array} Array of styles
  */
-function extractStylesFromResponse(response) {
-  return Array.isArray(response)
+const extractStylesFromResponse = (response) =>
+  Array.isArray(response)
     ? response
     : response?.results ?? response?.styles ?? response?.data ?? [];
-}
 
 export async function fetchAvailableFilters(maxPages = 5) {
   const tagsSet = new Set();

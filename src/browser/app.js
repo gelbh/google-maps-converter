@@ -16,7 +16,7 @@ import {
 } from "./snazzy-maps-api.js";
 
 // Wait for CodeMirror to be available
-function initializeEditors() {
+const initializeEditors = () => {
   // DOM elements
   const v1InputTextarea = document.getElementById("v1-input");
   const v2OutputTextarea = document.getElementById("v2-output");
@@ -98,16 +98,14 @@ function initializeEditors() {
 
   // Initialize the rest of the app
   initializeApp(v1Input, v2Output);
-}
+};
 
 /**
  * Gets DOM element by ID with optional chaining support
  * @param {string} id - Element ID
  * @returns {HTMLElement|null} Element or null if not found
  */
-function getElement(id) {
-  return document.getElementById(id);
-}
+const getElement = (id) => document.getElementById(id);
 
 // DOM elements
 const convertBtn = getElement("convert-btn");
@@ -132,441 +130,10 @@ function initializeApp(v1Input, v2Output) {
   fileInput?.addEventListener("change", handleFileUpload);
   closeValidationErrors?.addEventListener("click", hideValidationErrors);
 
-  // Initialize style browser modal
-  initializeStyleModal(v1Input);
-
-  validationStatus?.addEventListener("click", () => {
-    if (!validationErrors?.classList.contains("hidden")) {
-      hideValidationErrors();
-    } else if (validationErrorsContent?.innerHTML.trim()) {
-      validationErrors.classList.remove("hidden");
-      validationErrors.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  });
-
-  // Keyboard shortcuts
-  document.addEventListener("keydown", (e) => {
-    // Ctrl/Cmd + Enter to convert
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      handleConvert();
-    }
-  });
-
-  /**
-   * Handles conversion from V1 to V2
-   */
-  async function handleConvert() {
-    const input = v1Input.getValue().trim();
-
-    if (!input) {
-      showError("Please enter V1 JSON to convert");
-      return;
-    }
-
-    // Hide previous errors
-    hideError();
-    showLoading(true);
-    updateValidationStatus("pending", "Validating...");
-
-    try {
-      // Convert V1 to V2
-      const v2Result = convertV1ToV2(input);
-      currentV2Output = v2Result;
-
-      // Format and display output
-      const formatted = JSON.stringify(v2Result, null, 2);
-      v2Output.setValue(formatted);
-
-      // Validate output
-      const validation = await validateV2(v2Result);
-      if (validation.valid) {
-        updateValidationStatus("valid", "Valid ✓");
-        hideValidationErrors();
-      } else {
-        updateValidationStatus("invalid", "Invalid ✗");
-        showValidationErrors(validation.errors, v2Result);
-        console.warn("Validation errors:", validation.errors);
-      }
-    } catch (error) {
-      showError(`Conversion error: ${error.message}`);
-      v2Output.setValue("");
-      currentV2Output = null;
-      updateValidationStatus("invalid", "Error");
-    } finally {
-      showLoading(false);
-    }
-  }
-
-  /**
-   * Handles file upload
-   */
-  function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const content = e.target.result;
-        // Try to parse as JSON to validate
-        JSON.parse(content);
-        v1Input.setValue(content);
-        hideError();
-      } catch (error) {
-        showError(`Invalid JSON file: ${error.message}`);
-      }
-    };
-    reader.onerror = () => {
-      showError("Failed to read file");
-    };
-    reader.readAsText(file);
-
-    // Reset file input
-    event.target.value = "";
-  }
-
-  /**
-   * Loads a style from Snazzy Maps API into the editor
-   * @param {string|number} styleId - Style ID
-   * @param {Object} [cachedStyle] - Optional cached style object from grid
-   */
-  async function handleStyleSelection(styleId, cachedStyle = null) {
-    if (!styleId) return;
-
-    showLoading(true);
-    try {
-      let selectedStyle = cachedStyle;
-
-      // If we have cached style data with JSON, try to use it first
-      if (cachedStyle && cachedStyle.json) {
-        const v1Json = parseStyleJson(cachedStyle);
-        if (v1Json) {
-          const formatted = JSON.stringify(v1Json, null, 2);
-          v1Input.setValue(formatted);
-          hideError();
-          return;
-        }
-      }
-
-      // Otherwise, fetch the full style from API
-      const response = await fetchStyleById(styleId);
-
-      // Handle different response structures
-      if (!selectedStyle) {
-        selectedStyle = response;
-        if (Array.isArray(response)) {
-          selectedStyle = response[0];
-        } else if (response.results && Array.isArray(response.results)) {
-          selectedStyle = response.results[0];
-        } else if (response.data) {
-          selectedStyle = response.data;
-        }
-      }
-
-      if (!selectedStyle) {
-        throw new Error("Selected style not found in API response");
-      }
-
-      // Try to extract the JSON field - it might be in different formats
-      let v1Json = null;
-
-      // First, try to use parsedJson if available (from fetchStyleById)
-      if (selectedStyle.parsedJson) {
-        v1Json = selectedStyle.parsedJson;
-      } else if (selectedStyle.json) {
-        // Try to parse the json field
-        v1Json = parseStyleJson(selectedStyle);
-        if (!v1Json) {
-          // If parsing failed, try to parse it as a string
-          try {
-            if (typeof selectedStyle.json === "string") {
-              v1Json = JSON.parse(selectedStyle.json);
-            } else {
-              v1Json = selectedStyle.json;
-            }
-          } catch (e) {
-            console.warn("Failed to parse style JSON:", e);
-          }
-        }
-      } else if (selectedStyle.styles) {
-        // If the response has a styles array, use it directly
-        v1Json = { styles: selectedStyle.styles };
-      } else if (Array.isArray(selectedStyle)) {
-        // If the response is an array of styles
-        v1Json = { styles: selectedStyle };
-      } else {
-        // Check if the style object itself looks like V1 JSON
-        if (selectedStyle.variant || selectedStyle.styles) {
-          v1Json = selectedStyle;
-        }
-      }
-
-      if (!v1Json) {
-        // Log detailed information for debugging
-        console.error("Style response structure:", selectedStyle);
-        console.error("Available fields:", Object.keys(selectedStyle));
-
-        // Try to see if there's any JSON-like data anywhere in the response
-        const jsonFields = Object.keys(selectedStyle).filter(
-          (key) =>
-            key.toLowerCase().includes("json") ||
-            key.toLowerCase().includes("style")
-        );
-        console.error("Fields containing 'json' or 'style':", jsonFields);
-
-        throw new Error(
-          `Style does not contain valid JSON. The style may not be available, may require authentication, or may be in an unsupported format. Please check the browser console for details.`
-        );
-      }
-
-      // Format and set the V1 JSON in the editor
-      const formatted = JSON.stringify(v1Json, null, 2);
-      v1Input.setValue(formatted);
-      hideError();
-    } catch (error) {
-      console.error("Error loading style:", error);
-      showError(`Failed to load style: ${error.message}`);
-    } finally {
-      showLoading(false);
-    }
-  }
-
-  /**
-   * Handles clear action
-   */
-  function handleClear() {
-    v1Input.setValue("");
-    v2Output.setValue("");
-    currentV2Output = null;
-    hideError();
-    updateValidationStatus("", "");
-    v1Input.focus();
-  }
-
-  /**
-   * Handles copy to clipboard
-   */
-  async function handleCopy() {
-    const outputValue = v2Output.getValue();
-    if (!outputValue) {
-      showError("No output to copy");
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(outputValue);
-      // Visual feedback
-      const originalText = copyBtn.textContent;
-      copyBtn.textContent = "Copied!";
-      copyBtn.classList.remove("bg-white/20");
-      copyBtn.classList.add("bg-green-500/40", "border-green-400/50");
-      setTimeout(() => {
-        copyBtn.textContent = originalText;
-        copyBtn.classList.remove("bg-green-500/40", "border-green-400/50");
-        copyBtn.classList.add("bg-white/20");
-      }, 2000);
-    } catch (error) {
-      showError(`Failed to copy: ${error.message}`);
-    }
-  }
-
-  /**
-   * Handles download
-   */
-  function handleDownload() {
-    if (!currentV2Output) {
-      showError("No output to download");
-      return;
-    }
-
-    const json = JSON.stringify(currentV2Output, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "v2-style.json";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  function showError(message) {
-    if (errorDisplay) {
-      errorDisplay.textContent = message;
-      errorDisplay.classList.remove("hidden");
-    }
-  }
-
-  function hideError() {
-    errorDisplay?.classList.add("hidden");
-  }
-
-  function showLoading(show) {
-    loading?.classList.toggle("hidden", !show);
-    if (convertBtn) convertBtn.disabled = show;
-  }
-
-  const STATUS_CLASSES = {
-    valid:
-      "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-green-100 text-green-800",
-    invalid:
-      "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-red-100 text-red-800",
-    pending:
-      "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-yellow-100 text-yellow-800",
-  };
-
-  function updateValidationStatus(status, text) {
-    if (!validationStatus) return;
-
-    validationStatus.classList.remove("valid", "invalid", "pending");
-
-    if (status && STATUS_CLASSES[status]) {
-      validationStatus.classList.add(status);
-      validationStatus.className = STATUS_CLASSES[status];
-    }
-
-    validationStatus.textContent = text;
-    validationStatus.classList.toggle("hidden", !text);
-  }
-
-  /**
-   * Shows detailed validation errors
-   */
-  function showValidationErrors(errors, v2Result) {
-    if (!errors || errors.length === 0) {
-      hideValidationErrors();
-      return;
-    }
-
-    // Group errors by path
-    const errorsByPath = {};
-    errors.forEach((error) => {
-      const path = error.instancePath || error.schemaPath || "/";
-      if (!errorsByPath[path]) {
-        errorsByPath[path] = [];
-      }
-      errorsByPath[path].push(error);
-    });
-
-    // Build detailed error display
-    let html = `<div class="mb-4 p-3 bg-yellow-100/50 rounded-md text-yellow-800 font-medium">
-      <p><strong>${errors.length} validation error${
-      errors.length !== 1 ? "s" : ""
-    } found</strong></p>
-    </div>`;
-
-    // Show errors grouped by path
-    Object.entries(errorsByPath).forEach(([path, pathErrors]) => {
-      html += `<div class="mb-4 p-4 bg-background rounded-md border-l-4 border-destructive">`;
-      html += `<div class="mb-3 font-semibold text-foreground"><strong>Path:</strong> <code class="bg-muted px-2 py-1 rounded text-sm font-mono text-destructive">${
-        path || "/"
-      }</code></div>`;
-
-      pathErrors.forEach((error) => {
-        html += `<div class="mb-3 p-3 bg-muted rounded-md last:mb-0">`;
-        html += `<div class="mb-2 text-destructive font-medium"><strong>Error:</strong> ${
-          error.message || "Unknown error"
-        }</div>`;
-
-        if (error.params) {
-          html += `<div class="mb-2 text-muted-foreground text-xs"><strong>Details:</strong> `;
-          const params = Object.entries(error.params)
-            .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
-            .join(", ");
-          html += params;
-          html += `</div>`;
-        }
-
-        // Show the actual value that failed
-        if (path && v2Result) {
-          const value = getNestedValue(v2Result, path);
-          if (value !== undefined) {
-            html += `<div class="mt-2 p-2 bg-background border border-border rounded"><strong>Value:</strong> <code class="font-mono text-xs text-foreground break-all">${JSON.stringify(
-              value
-            )}</code></div>`;
-          }
-        }
-
-        html += `</div>`;
-      });
-
-      html += `</div>`;
-    });
-
-    // Show which styles are problematic
-    const styleErrors = errors.filter(
-      (e) => e.instancePath && e.instancePath.includes("/styles/")
-    );
-    if (styleErrors.length > 0) {
-      const styleIndices = new Set();
-      styleErrors.forEach((error) => {
-        const match = error.instancePath.match(/\/styles\/(\d+)/);
-        if (match) {
-          styleIndices.add(parseInt(match[1]));
-        }
-      });
-
-      if (styleIndices.size > 0) {
-        html += `<div class="mb-4 p-4 bg-background rounded-md border-l-4 border-destructive">`;
-        html += `<div class="mb-3 font-semibold text-foreground"><strong>Problematic Styles:</strong></div>`;
-        Array.from(styleIndices)
-          .sort((a, b) => a - b)
-          .forEach((index) => {
-            const style = v2Result.styles[index];
-            if (style) {
-              html += `<div class="mb-3 p-3 bg-muted rounded-md last:mb-0">`;
-              html += `<div class="mb-2 text-destructive font-medium">Style #${index}: <code class="bg-muted px-2 py-1 rounded text-sm font-mono text-destructive">${
-                style.id || "unknown"
-              }</code></div>`;
-              html += `<div class="mt-2 p-2 bg-background border border-border rounded"><pre class="m-0 p-0 font-mono text-xs text-foreground whitespace-pre-wrap break-all bg-transparent border-none">${JSON.stringify(
-                style,
-                null,
-                2
-              )}</pre></div>`;
-              html += `</div>`;
-            }
-          });
-        html += `</div>`;
-      }
-    }
-
-    validationErrorsContent.innerHTML = html;
-    validationErrors.classList.remove("hidden");
-
-    // Scroll to validation errors
-    validationErrors.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
-
-  function hideValidationErrors() {
-    validationErrors?.classList.add("hidden");
-  }
-
-  function getNestedValue(obj, path) {
-    if (!path || path === "/") {
-      return obj;
-    }
-
-    const parts = path.split("/").filter(Boolean);
-    let current = obj;
-
-    for (const part of parts) {
-      if (current == null) {
-        return undefined;
-      }
-
-      const index = parseInt(part, 10);
-      current = !isNaN(index) ? current[index] : current[part];
-    }
-
-    return current;
-  }
-
   /**
    * Initialize the style browser modal
    */
-  function initializeStyleModal(v1InputEditor) {
+  const initializeStyleModal = (v1InputEditor) => {
     const modal = getElement("style-modal");
     const modalOverlay = getElement("style-modal-overlay");
     const openModalBtn = getElement("open-style-modal-btn");
@@ -1032,7 +599,438 @@ function initializeApp(v1Input, v2Output) {
         loadStyles();
       }
     });
+  };
+
+  // Initialize style browser modal
+  initializeStyleModal(v1Input);
+
+  validationStatus?.addEventListener("click", () => {
+    if (!validationErrors?.classList.contains("hidden")) {
+      hideValidationErrors();
+    } else if (validationErrorsContent?.innerHTML.trim()) {
+      validationErrors.classList.remove("hidden");
+      validationErrors.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", (e) => {
+    // Ctrl/Cmd + Enter to convert
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      handleConvert();
+    }
+  });
+
+  /**
+   * Handles conversion from V1 to V2
+   */
+  async function handleConvert() {
+    const input = v1Input.getValue().trim();
+
+    if (!input) {
+      showError("Please enter V1 JSON to convert");
+      return;
+    }
+
+    // Hide previous errors
+    hideError();
+    showLoading(true);
+    updateValidationStatus("pending", "Validating...");
+
+    try {
+      // Convert V1 to V2
+      const v2Result = convertV1ToV2(input);
+      currentV2Output = v2Result;
+
+      // Format and display output
+      const formatted = JSON.stringify(v2Result, null, 2);
+      v2Output.setValue(formatted);
+
+      // Validate output
+      const validation = await validateV2(v2Result);
+      if (validation.valid) {
+        updateValidationStatus("valid", "Valid ✓");
+        hideValidationErrors();
+      } else {
+        updateValidationStatus("invalid", "Invalid ✗");
+        showValidationErrors(validation.errors, v2Result);
+        console.warn("Validation errors:", validation.errors);
+      }
+    } catch (error) {
+      showError(`Conversion error: ${error.message}`);
+      v2Output.setValue("");
+      currentV2Output = null;
+      updateValidationStatus("invalid", "Error");
+    } finally {
+      showLoading(false);
+    }
   }
+
+  /**
+   * Handles file upload
+   */
+  function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target.result;
+        // Try to parse as JSON to validate
+        JSON.parse(content);
+        v1Input.setValue(content);
+        hideError();
+      } catch (error) {
+        showError(`Invalid JSON file: ${error.message}`);
+      }
+    };
+    reader.onerror = () => {
+      showError("Failed to read file");
+    };
+    reader.readAsText(file);
+
+    // Reset file input
+    event.target.value = "";
+  }
+
+  /**
+   * Loads a style from Snazzy Maps API into the editor
+   * @param {string|number} styleId - Style ID
+   * @param {Object} [cachedStyle] - Optional cached style object from grid
+   */
+  async function handleStyleSelection(styleId, cachedStyle = null) {
+    if (!styleId) return;
+
+    showLoading(true);
+    try {
+      let selectedStyle = cachedStyle;
+
+      // If we have cached style data with JSON, try to use it first
+      if (cachedStyle && cachedStyle.json) {
+        const v1Json = parseStyleJson(cachedStyle);
+        if (v1Json) {
+          const formatted = JSON.stringify(v1Json, null, 2);
+          v1Input.setValue(formatted);
+          hideError();
+          return;
+        }
+      }
+
+      // Otherwise, fetch the full style from API
+      const response = await fetchStyleById(styleId);
+
+      // Handle different response structures
+      if (!selectedStyle) {
+        selectedStyle = response;
+        if (Array.isArray(response)) {
+          selectedStyle = response[0];
+        } else if (response.results && Array.isArray(response.results)) {
+          selectedStyle = response.results[0];
+        } else if (response.data) {
+          selectedStyle = response.data;
+        }
+      }
+
+      if (!selectedStyle) {
+        throw new Error("Selected style not found in API response");
+      }
+
+      // Try to extract the JSON field - it might be in different formats
+      let v1Json = null;
+
+      // First, try to use parsedJson if available (from fetchStyleById)
+      if (selectedStyle.parsedJson) {
+        v1Json = selectedStyle.parsedJson;
+      } else if (selectedStyle.json) {
+        // Try to parse the json field
+        v1Json = parseStyleJson(selectedStyle);
+        if (!v1Json) {
+          // If parsing failed, try to parse it as a string
+          try {
+            if (typeof selectedStyle.json === "string") {
+              v1Json = JSON.parse(selectedStyle.json);
+            } else {
+              v1Json = selectedStyle.json;
+            }
+          } catch (e) {
+            console.warn("Failed to parse style JSON:", e);
+          }
+        }
+      } else if (selectedStyle.styles) {
+        // If the response has a styles array, use it directly
+        v1Json = { styles: selectedStyle.styles };
+      } else if (Array.isArray(selectedStyle)) {
+        // If the response is an array of styles
+        v1Json = { styles: selectedStyle };
+      } else {
+        // Check if the style object itself looks like V1 JSON
+        if (selectedStyle.variant || selectedStyle.styles) {
+          v1Json = selectedStyle;
+        }
+      }
+
+      if (!v1Json) {
+        // Log detailed information for debugging
+        console.error("Style response structure:", selectedStyle);
+        console.error("Available fields:", Object.keys(selectedStyle));
+
+        // Try to see if there's any JSON-like data anywhere in the response
+        const jsonFields = Object.keys(selectedStyle).filter(
+          (key) =>
+            key.toLowerCase().includes("json") ||
+            key.toLowerCase().includes("style")
+        );
+        console.error("Fields containing 'json' or 'style':", jsonFields);
+
+        throw new Error(
+          `Style does not contain valid JSON. The style may not be available, may require authentication, or may be in an unsupported format. Please check the browser console for details.`
+        );
+      }
+
+      // Format and set the V1 JSON in the editor
+      const formatted = JSON.stringify(v1Json, null, 2);
+      v1Input.setValue(formatted);
+      hideError();
+    } catch (error) {
+      console.error("Error loading style:", error);
+      showError(`Failed to load style: ${error.message}`);
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  /**
+   * Handles clear action
+   */
+  function handleClear() {
+    v1Input.setValue("");
+    v2Output.setValue("");
+    currentV2Output = null;
+    hideError();
+    updateValidationStatus("", "");
+    v1Input.focus();
+  }
+
+  /**
+   * Handles copy to clipboard
+   */
+  async function handleCopy() {
+    const outputValue = v2Output.getValue();
+    if (!outputValue) {
+      showError("No output to copy");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(outputValue);
+      // Visual feedback
+      const originalText = copyBtn.textContent;
+      copyBtn.textContent = "Copied!";
+      copyBtn.classList.remove("bg-white/20");
+      copyBtn.classList.add("bg-green-500/40", "border-green-400/50");
+      setTimeout(() => {
+        copyBtn.textContent = originalText;
+        copyBtn.classList.remove("bg-green-500/40", "border-green-400/50");
+        copyBtn.classList.add("bg-white/20");
+      }, 2000);
+    } catch (error) {
+      showError(`Failed to copy: ${error.message}`);
+    }
+  }
+
+  /**
+   * Handles download
+   */
+  function handleDownload() {
+    if (!currentV2Output) {
+      showError("No output to download");
+      return;
+    }
+
+    const json = JSON.stringify(currentV2Output, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "v2-style.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  const showError = (message) => {
+    if (errorDisplay) {
+      errorDisplay.textContent = message;
+      errorDisplay.classList.remove("hidden");
+    }
+  };
+
+  const hideError = () => {
+    errorDisplay?.classList.add("hidden");
+  };
+
+  const showLoading = (show) => {
+    loading?.classList.toggle("hidden", !show);
+    convertBtn && (convertBtn.disabled = show);
+  };
+
+  const STATUS_CLASSES = {
+    valid:
+      "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-green-100 text-green-800",
+    invalid:
+      "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-red-100 text-red-800",
+    pending:
+      "px-3 py-1 rounded-full text-xs font-semibold uppercase cursor-pointer transition-opacity hover:opacity-80 bg-yellow-100 text-yellow-800",
+  };
+
+  const updateValidationStatus = (status, text) => {
+    if (!validationStatus) return;
+
+    validationStatus.classList.remove("valid", "invalid", "pending");
+
+    if (status && STATUS_CLASSES[status]) {
+      validationStatus.classList.add(status);
+      validationStatus.className = STATUS_CLASSES[status];
+    }
+
+    validationStatus.textContent = text;
+    validationStatus.classList.toggle("hidden", !text);
+  };
+
+  /**
+   * Shows detailed validation errors
+   */
+  function showValidationErrors(errors, v2Result) {
+    if (!errors || errors.length === 0) {
+      hideValidationErrors();
+      return;
+    }
+
+    // Group errors by path
+    const errorsByPath = {};
+    errors.forEach((error) => {
+      const path = error.instancePath || error.schemaPath || "/";
+      if (!errorsByPath[path]) {
+        errorsByPath[path] = [];
+      }
+      errorsByPath[path].push(error);
+    });
+
+    // Build detailed error display
+    let html = `<div class="mb-4 p-3 bg-yellow-100/50 rounded-md text-yellow-800 font-medium">
+      <p><strong>${errors.length} validation error${
+      errors.length !== 1 ? "s" : ""
+    } found</strong></p>
+    </div>`;
+
+    // Show errors grouped by path
+    Object.entries(errorsByPath).forEach(([path, pathErrors]) => {
+      html += `<div class="mb-4 p-4 bg-background rounded-md border-l-4 border-destructive">`;
+      html += `<div class="mb-3 font-semibold text-foreground"><strong>Path:</strong> <code class="bg-muted px-2 py-1 rounded text-sm font-mono text-destructive">${
+        path || "/"
+      }</code></div>`;
+
+      pathErrors.forEach((error) => {
+        html += `<div class="mb-3 p-3 bg-muted rounded-md last:mb-0">`;
+        html += `<div class="mb-2 text-destructive font-medium"><strong>Error:</strong> ${
+          error.message || "Unknown error"
+        }</div>`;
+
+        if (error.params) {
+          html += `<div class="mb-2 text-muted-foreground text-xs"><strong>Details:</strong> `;
+          const params = Object.entries(error.params)
+            .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+            .join(", ");
+          html += params;
+          html += `</div>`;
+        }
+
+        // Show the actual value that failed
+        if (path && v2Result) {
+          const value = getNestedValue(v2Result, path);
+          if (value !== undefined) {
+            html += `<div class="mt-2 p-2 bg-background border border-border rounded"><strong>Value:</strong> <code class="font-mono text-xs text-foreground break-all">${JSON.stringify(
+              value
+            )}</code></div>`;
+          }
+        }
+
+        html += `</div>`;
+      });
+
+      html += `</div>`;
+    });
+
+    // Show which styles are problematic
+    const styleErrors = errors.filter(
+      (e) => e.instancePath && e.instancePath.includes("/styles/")
+    );
+    if (styleErrors.length > 0) {
+      const styleIndices = new Set();
+      styleErrors.forEach((error) => {
+        const match = error.instancePath.match(/\/styles\/(\d+)/);
+        if (match) {
+          styleIndices.add(parseInt(match[1]));
+        }
+      });
+
+      if (styleIndices.size > 0) {
+        html += `<div class="mb-4 p-4 bg-background rounded-md border-l-4 border-destructive">`;
+        html += `<div class="mb-3 font-semibold text-foreground"><strong>Problematic Styles:</strong></div>`;
+        Array.from(styleIndices)
+          .sort((a, b) => a - b)
+          .forEach((index) => {
+            const style = v2Result.styles[index];
+            if (style) {
+              html += `<div class="mb-3 p-3 bg-muted rounded-md last:mb-0">`;
+              html += `<div class="mb-2 text-destructive font-medium">Style #${index}: <code class="bg-muted px-2 py-1 rounded text-sm font-mono text-destructive">${
+                style.id || "unknown"
+              }</code></div>`;
+              html += `<div class="mt-2 p-2 bg-background border border-border rounded"><pre class="m-0 p-0 font-mono text-xs text-foreground whitespace-pre-wrap break-all bg-transparent border-none">${JSON.stringify(
+                style,
+                null,
+                2
+              )}</pre></div>`;
+              html += `</div>`;
+            }
+          });
+        html += `</div>`;
+      }
+    }
+
+    validationErrorsContent.innerHTML = html;
+    validationErrors.classList.remove("hidden");
+
+    // Scroll to validation errors
+    validationErrors.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function hideValidationErrors() {
+    validationErrors?.classList.add("hidden");
+  }
+
+  const getNestedValue = (obj, path) => {
+    if (!path || path === "/") {
+      return obj;
+    }
+
+    const parts = path.split("/").filter(Boolean);
+    let current = obj;
+
+    for (const part of parts) {
+      if (current == null) {
+        return undefined;
+      }
+
+      const index = Number.parseInt(part, 10);
+      current = !Number.isNaN(index) ? current[index] : current[part];
+    }
+
+    return current;
+  };
 }
 
 // Start initialization when DOM is ready

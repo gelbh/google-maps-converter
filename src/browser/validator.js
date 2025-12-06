@@ -3,7 +3,7 @@
  * Validates converted V2 JSON against cbms-json-schema.json
  */
 
-import schemaData from "../schema/cbms-json-schema.json";
+import schemaData from "../schema/cbms-json-schema.json" with { type: "json" };
 
 let ajvInstance = null;
 let schema = null;
@@ -12,7 +12,7 @@ let schema = null;
  * Gets Ajv constructor from global scope
  * @returns {Function|undefined} Ajv constructor or undefined
  */
-function getAjvConstructor() {
+const getAjvConstructor = () => {
   try {
     if (typeof ajv7 !== "undefined") {
       return ajv7.Ajv ?? ajv7.default ?? ajv7;
@@ -31,13 +31,32 @@ function getAjvConstructor() {
     // Ignore errors
   }
   return undefined;
-}
+};
+
+/**
+ * Loads a script dynamically
+ * @param {string} src - Script source URL
+ * @returns {Promise<void>}
+ */
+const loadScript = (src) => {
+  if (document.querySelector(`script[src="${src}"]`)) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+    document.head.appendChild(script);
+  });
+};
 
 /**
  * Initializes AJV and loads the schema
  * @returns {Promise<void>}
  */
-async function initializeValidator() {
+const initializeValidator = async () => {
   if (ajvInstance && schema) {
     return;
   }
@@ -60,26 +79,7 @@ async function initializeValidator() {
 
   ajvInstance = new AjvConstructor({ allErrors: true, verbose: true });
   schema = schemaData;
-}
-
-/**
- * Loads a script dynamically
- * @param {string} src - Script source URL
- * @returns {Promise<void>}
- */
-function loadScript(src) {
-  if (document.querySelector(`script[src="${src}"]`)) {
-    return Promise.resolve();
-  }
-
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
-    document.head.appendChild(script);
-  });
-}
+};
 
 /**
  * Validates V2 JSON against the schema
