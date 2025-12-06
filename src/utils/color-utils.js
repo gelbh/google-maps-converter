@@ -87,10 +87,49 @@ export function hslToHex(h, s, l) {
  * @param {number|string} adjustment - Adjustment value (-100 to 100)
  * @returns {number} Adjusted value clamped to 0-100
  */
-function applyHslComponent(value, adjustment) {
+const applyHslComponent = (value, adjustment) => {
   if (adjustment === undefined || adjustment === null) return value;
   const adjust = parseFloat(adjustment);
-  return isNaN(adjust) ? value : Math.max(0, Math.min(100, value + adjust));
+  return Number.isNaN(adjust)
+    ? value
+    : Math.max(0, Math.min(100, value + adjust));
+};
+
+/**
+ * Applies gamma adjustment to a hex color
+ * Gamma adjusts the brightness curve: output = (input / 255) ^ (1 / gamma) * 255
+ * @param {string} baseColor - Base hex color (#RRGGBB)
+ * @param {number|string} gamma - Gamma value (typically 0.01 to 10.0)
+ * @returns {string} Adjusted hex color (#RRGGBB)
+ */
+export function applyGamma(baseColor, gamma) {
+  if (gamma === undefined || gamma === null) return baseColor;
+  const gammaValue = parseFloat(gamma);
+  if (Number.isNaN(gammaValue) || gammaValue <= 0) return baseColor;
+
+  const normalized = normalizeHex(baseColor);
+  const r = parseInt(normalized.slice(1, 3), 16);
+  const g = parseInt(normalized.slice(3, 5), 16);
+  const b = parseInt(normalized.slice(5, 7), 16);
+
+  // Apply gamma correction: output = (input / 255) ^ (1 / gamma) * 255
+  const gammaCorrection = 1 / gammaValue;
+  const applyGammaToChannel = (channel) => {
+    const normalized = channel / 255;
+    const corrected = Math.pow(normalized, gammaCorrection);
+    return Math.round(Math.max(0, Math.min(255, corrected * 255)));
+  };
+
+  const correctedR = applyGammaToChannel(r);
+  const correctedG = applyGammaToChannel(g);
+  const correctedB = applyGammaToChannel(b);
+
+  const toHex = (c) => {
+    const hex = c.toString(16);
+    return hex.length === 1 ? "0" + hex : hex;
+  };
+
+  return `#${toHex(correctedR)}${toHex(correctedG)}${toHex(correctedB)}`;
 }
 
 /**
@@ -115,38 +154,33 @@ export function applyHslAdjustments(baseColor, lightness, saturation) {
  * @param {string} hex - Hex color string (may be 3 or 6 digits)
  * @returns {string} Normalized 6-digit hex color (#RRGGBB)
  */
-export function normalizeHex(hex) {
+export const normalizeHex = (hex) => {
   if (!hex || typeof hex !== "string") {
     return "#000000";
   }
 
-  hex = hex.trim().toLowerCase();
+  let normalized = hex.trim().toLowerCase();
 
   // Remove # if present
-  if (hex.startsWith("#")) {
-    hex = hex.slice(1);
+  if (normalized.startsWith("#")) {
+    normalized = normalized.slice(1);
   }
 
   // Handle 3-digit hex
-  if (hex.length === 3) {
-    hex = hex
+  if (normalized.length === 3) {
+    normalized = normalized
       .split("")
       .map((char) => char + char)
       .join("");
   }
 
-  // Ensure 6 digits
-  if (hex.length !== 6) {
+  // Ensure 6 digits and validate hex characters
+  if (normalized.length !== 6 || !/^[0-9a-f]{6}$/.test(normalized)) {
     return "#000000";
   }
 
-  // Validate hex characters
-  if (!/^[0-9a-f]{6}$/.test(hex)) {
-    return "#000000";
-  }
-
-  return `#${hex}`;
-}
+  return `#${normalized}`;
+};
 
 /**
  * Extracts color from V1 styler object, applying HSL adjustments if present
@@ -157,7 +191,7 @@ export function normalizeHex(hex) {
  * @param {Object} externalAdjustments - Optional external HSL adjustments to apply {saturation?: number, lightness?: number}
  * @returns {string|null} Hex color string (#RRGGBB) or null if no color specified and no HSL adjustments
  */
-export function extractColor(styler, externalAdjustments = null) {
+export const extractColor = (styler, externalAdjustments = null) => {
   const hasExplicitColor = styler?.color !== undefined && styler.color !== null;
   const hasHslAdjustments =
     styler?.lightness !== undefined || styler?.saturation !== undefined;
@@ -178,13 +212,23 @@ export function extractColor(styler, externalAdjustments = null) {
   // Use explicit color as base
   let color = normalizeHex(styler.color);
 
+  // Check if base color is pure black or white - these should be preserved unless
+  // there are HSL adjustments in the same styler
+  const isPureBlack = color === "#000000";
+  const isPureWhite = color === "#ffffff";
+  const isPureBlackOrWhite = isPureBlack || isPureWhite;
+
   // Apply HSL adjustments from the same styler object to the explicit color
   if (hasHslAdjustments) {
+    // Apply saturation adjustment - in V1, adding saturation to greyscale colors makes them colorful
     color = applyHslAdjustments(color, styler.lightness, styler.saturation);
   }
 
   // Apply external HSL adjustments (from feature-level rules) after styler-level adjustments
-  if (hasExternalAdjustments) {
+  // Skip external adjustments for pure black/white colors unless there were HSL adjustments in the same styler
+  // This preserves explicit black/white colors from being modified by parent feature adjustments
+  if (hasExternalAdjustments && (!isPureBlackOrWhite || hasHslAdjustments)) {
+    // Apply saturation adjustment - in V1, adding saturation to greyscale colors makes them colorful
     color = applyHslAdjustments(
       color,
       externalAdjustments.lightness,
@@ -193,4 +237,4 @@ export function extractColor(styler, externalAdjustments = null) {
   }
 
   return color;
-}
+};
