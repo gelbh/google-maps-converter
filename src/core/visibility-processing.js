@@ -33,10 +33,16 @@ export const handleLabelsIconVisibility = (
     if (isIconShieldFeature(id)) {
       const style = getOrCreateStyle(v2StylesMap, id);
       const label = ensureSection(style, "label");
+      // For icon/shield features, always apply labels.icon visibility
+      // If setting to false, always apply; if setting to true, apply if not already set to false by a more specific rule
       if (label.visible === undefined) {
         label.visible = visible;
       } else if (!visible) {
+        // Always set to false if visibility is off
         label.visible = false;
+      } else if (visible) {
+        // Set to true if visibility is on (allows overriding previous false values from less specific rules)
+        label.visible = true;
       }
     } else if (isValidLabelProperty(id, "pinFillColor")) {
       if (!visible) {
@@ -156,7 +162,9 @@ export const handleGeneralVisibility = (
         elementType === "all" ||
         elementType === "labels" ||
         elementType === "labels.text" ||
-        elementType === "labels.icon";
+        elementType === "labels.icon" ||
+        elementType?.startsWith("labels.text") ||
+        elementType?.startsWith("labels.icon");
 
       if (isGeneralLabelTarget) {
         ensureSection(style, "label").visible = visible;
@@ -168,6 +176,8 @@ export const handleGeneralVisibility = (
         visibilitySourceMap.set(key, featureType);
       }
     } else if (hasGeometry && elementType?.startsWith("geometry")) {
+      // For geometry-specific element types (geometry.fill, geometry.stroke, etc.)
+      // Apply visibility to geometry section
       if (shouldApplyGeometry) {
         ensureSection(style, "geometry").visible = visible;
         visibilitySourceMap.set(key, featureType);
@@ -175,12 +185,19 @@ export const handleGeneralVisibility = (
     } else {
       ensureRequiredElements(style, id, elementType);
 
+      // Apply geometry visibility if applicable
       if (isGeometryTarget && hasGeometry && shouldApplyGeometry) {
         ensureSection(style, "geometry").visible = visible;
         visibilitySourceMap.set(key, featureType);
       }
 
-      if (isLabelTarget && hasLabel) {
+      // Apply label visibility if applicable
+      // For labels.text, also check if elementType starts with labels.text
+      const isLabelTextTarget =
+        isLabelTarget ||
+        elementType === "labels.text" ||
+        elementType?.startsWith("labels.text");
+      if (isLabelTextTarget && hasLabel) {
         ensureSection(style, "label").visible = visible;
         visibilitySourceMap.set(key, featureType);
       }
