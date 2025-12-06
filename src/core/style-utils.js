@@ -13,9 +13,9 @@ import {
 import { getV2Id } from "./mapping.js";
 
 /**
- * Converts V1 weight to V2 strokeWeight
+ * Converts V1 weight to V2 strokeWidth
  * @param {string|number} weight - V1 weight value
- * @returns {number|null} V2 strokeWeight (0-8, multiple of 0.125) or null if invalid
+ * @returns {number|null} V2 strokeWidth (0-8, multiple of 0.125) or null if invalid
  */
 export const convertWeight = (weight) => {
   if (weight === undefined || weight === null) return null;

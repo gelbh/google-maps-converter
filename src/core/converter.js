@@ -144,12 +144,12 @@ function processV1Rule(
               hslAdjustmentsMap
             );
           } else if (
-            property === "strokeWeight" &&
-            isValidGeometryProperty(id, "strokeWeight")
+            property === "strokeWidth" &&
+            isValidGeometryProperty(id, "strokeWidth")
           ) {
             const weight = convertWeight(mergedStyler.weight);
             if (weight !== null) {
-              ensureSection(style, "geometry").strokeWeight = weight;
+              ensureSection(style, "geometry").strokeWidth = weight;
             }
           }
         } else if (section === "label") {
@@ -173,6 +173,26 @@ function processV1Rule(
               iconVisibilityOffSet,
               hslAdjustmentsMap
             );
+          }
+        }
+      }
+
+      // Handle weight property for label element types that include "stroke"
+      // Weight should be applied to geometry.strokeWidth (not label properties)
+      // This applies even when there's no color in the styler
+      if (
+        mergedStyler.weight !== undefined &&
+        mergedStyler.weight !== null &&
+        elementType &&
+        elementType.includes("stroke")
+      ) {
+        const style = getOrCreateStyle(v2StylesMap, id);
+        if (supportsGeometry(id)) {
+          if (isValidGeometryProperty(id, "strokeWidth")) {
+            const weight = convertWeight(mergedStyler.weight);
+            if (weight !== null) {
+              ensureSection(style, "geometry").strokeWidth = weight;
+            }
           }
         }
       }

@@ -14,7 +14,7 @@ const COMMON_STROKE_PROPERTIES = [
   "fillOpacity",
   "strokeColor",
   "strokeOpacity",
-  "strokeWeight",
+  "strokeWidth",
 ];
 const COMMON_LABEL_PROPERTIES = [
   "visible",
@@ -112,7 +112,7 @@ export const geometryProperties = Object.freeze({
     "visible",
     "strokeColor",
     "strokeOpacity",
-    "strokeWeight",
+    "strokeWidth",
   ],
 
   // natural features

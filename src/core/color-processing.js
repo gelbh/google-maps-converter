@@ -21,7 +21,7 @@ import {
   ensureRequiredElements,
 } from "./feature-properties.js";
 import { getV2PropertyPath } from "./mapping.js";
-import { ensureSection, getOrCreateStyle } from "./style-utils.js";
+import { ensureSection, getOrCreateStyle, convertWeight } from "./style-utils.js";
 
 /**
  * Applies gamma adjustment to a color if present
@@ -293,10 +293,38 @@ export const processAllElementColors = (
         }
       }
 
+      // Handle weight property for features that support strokeWidth
+      if (mergedStyler.weight !== undefined && mergedStyler.weight !== null) {
+        if (supportsGeometry(id)) {
+          if (isValidGeometryProperty(id, "strokeWidth")) {
+            const weight = convertWeight(mergedStyler.weight);
+            if (weight !== null) {
+              ensureSection(style, "geometry").strokeWidth = weight;
+            }
+          }
+        }
+      }
+
       continue;
     }
 
-    if (color === null) continue;
+    if (color === null) {
+      // Handle weight property even when there's no color
+      if (mergedStyler.weight !== undefined && mergedStyler.weight !== null) {
+        const style = getOrCreateStyle(v2StylesMap, id);
+        ensureRequiredElements(style, id, null);
+        
+        if (supportsGeometry(id)) {
+          if (isValidGeometryProperty(id, "strokeWidth")) {
+            const weight = convertWeight(mergedStyler.weight);
+            if (weight !== null) {
+              ensureSection(style, "geometry").strokeWidth = weight;
+            }
+          }
+        }
+      }
+      continue;
+    }
 
     color = applyGammaIfPresent(color, mergedStyler.gamma);
 
@@ -339,6 +367,18 @@ export const processAllElementColors = (
       ) {
         label.pinFillColor = color;
         setVisibilityOnColor(style, "label", mergedStyler);
+      }
+    }
+
+    // Handle weight property for features that support strokeWidth
+    if (mergedStyler.weight !== undefined && mergedStyler.weight !== null) {
+      if (supportsGeometry(id)) {
+        if (isValidGeometryProperty(id, "strokeWidth")) {
+          const weight = convertWeight(mergedStyler.weight);
+          if (weight !== null) {
+            ensureSection(style, "geometry").strokeWidth = weight;
+          }
+        }
       }
     }
   }
