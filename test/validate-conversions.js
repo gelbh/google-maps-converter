@@ -16,6 +16,35 @@ import {
 } from "../src/node/validator-node.js";
 
 const API_BASE_URL = "https://snazzymaps.com/explore.json";
+const DEFAULT_TEST_STYLES_COUNT = 10;
+const DEFAULT_PAGE_SIZE = 12;
+
+/**
+ * Parses command-line arguments to get test count
+ * Supports --count=N or --count N or -c N
+ * @returns {number} Number of styles to test
+ */
+export const getTestCount = () => {
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--count" || arg === "-c") {
+      const value = args[i + 1];
+      if (value && !value.startsWith("-")) {
+        const count = Number.parseInt(value, 10);
+        if (!Number.isNaN(count) && count > 0) {
+          return count;
+        }
+      }
+    } else if (arg.startsWith("--count=")) {
+      const count = Number.parseInt(arg.split("=")[1], 10);
+      if (!Number.isNaN(count) && count > 0) {
+        return count;
+      }
+    }
+  }
+  return DEFAULT_TEST_STYLES_COUNT;
+};
 
 /**
  * Gets the API key from environment variables
@@ -24,7 +53,7 @@ const API_BASE_URL = "https://snazzymaps.com/explore.json";
  * @returns {string} API key
  * @throws {Error} If API key is not set
  */
-function getApiKey() {
+const getApiKey = () => {
   const apiKey =
     process.env.SNAZZY_MAPS_API_KEY ?? process.env.VITE_SNAZZY_MAPS_API_KEY;
   if (!apiKey) {
@@ -33,15 +62,15 @@ function getApiKey() {
     );
   }
   return apiKey;
-}
+};
 
 /**
  * Fetches styles from Snazzy Maps API
  * @param {Object} options - Query parameters
  * @returns {Promise<Array>} Array of style objects
  */
-async function fetchStylesFromAPI(options = {}) {
-  const { sort = "popular", page = 1, pageSize = 12 } = options;
+const fetchStylesFromAPI = async (options = {}) => {
+  const { sort = "popular", page = 1, pageSize = DEFAULT_PAGE_SIZE } = options;
 
   const params = new URLSearchParams();
   // API key is required - use query parameter (consistent with browser code)
@@ -71,18 +100,19 @@ async function fetchStylesFromAPI(options = {}) {
       `Failed to fetch styles from Snazzy Maps: ${error.message}`
     );
   }
-}
+};
 
 /**
  * Fetches a list of popular styles from Snazzy Maps API for testing
  * @returns {Promise<Array>} Array of style objects with id and name
  */
-async function getV1ExampleStyles() {
+export const getV1ExampleStyles = async () => {
   try {
+    const testCount = getTestCount();
     const styles = await fetchStylesFromAPI({
       sort: "popular",
       page: 1,
-      pageSize: 10, // Test with first 10 popular styles
+      pageSize: testCount,
     });
 
     if (styles.length === 0) {
@@ -94,24 +124,133 @@ async function getV1ExampleStyles() {
     console.error(`Error fetching styles from API: ${error.message}`);
     process.exit(1);
   }
-}
+};
+
+/**
+ * Attempts to clean up common JSON issues
+ * Handles JavaScript object syntax, comments, and trailing commas
+ * @param {string} jsonString - JSON string to clean
+ * @returns {string} Cleaned JSON string
+ */
+const cleanupJson = (jsonString) => {
+  let cleaned = jsonString;
+  let result = "";
+  let inString = false;
+  let escapeNext = false;
+
+  // Remove comments while preserving strings
+  // Process character by character to handle strings correctly
+  for (let i = 0; i < cleaned.length; i++) {
+    const char = cleaned[i];
+    const nextChar = cleaned[i + 1];
+
+    if (escapeNext) {
+      result += char;
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escapeNext = true;
+      result += char;
+      continue;
+    }
+
+    if (char === '"' && !escapeNext) {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+
+    if (inString) {
+      result += char;
+      continue;
+    }
+
+    // Check for single-line comment (//)
+    if (char === "/" && nextChar === "/") {
+      // Skip until end of line (skip the // and everything until newline)
+      i += 2; // Skip //
+      while (i < cleaned.length && cleaned[i] !== "\n" && cleaned[i] !== "\r") {
+        i++;
+      }
+      // Include the newline if present (don't skip it, let the for loop handle it)
+      continue;
+    }
+
+    // Check for multi-line comment (/* */)
+    if (char === "/" && nextChar === "*") {
+      // Skip until */
+      i += 2; // Skip /*
+      while (i < cleaned.length - 1) {
+        if (cleaned[i] === "*" && cleaned[i + 1] === "/") {
+          i += 2; // Skip */
+          break;
+        }
+        i++;
+      }
+      // The for loop will increment i, so we need to decrement to account for that
+      // This ensures we process the character after */ correctly
+      if (i < cleaned.length) {
+        i--;
+      }
+      continue;
+    }
+
+    result += char;
+  }
+
+  cleaned = result;
+
+  // Quote unquoted property names
+  // Match property names that are valid identifiers but not quoted
+  // Pattern: { key: or , key: where key is a valid identifier
+  cleaned = cleaned.replace(
+    /([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g,
+    '$1"$2":'
+  );
+
+  // Remove trailing commas before closing brackets/braces
+  cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1");
+
+  return cleaned.trim();
+};
 
 /**
  * Loads and parses V1 JSON from a style object
  * @param {Object} style - Style object from API with json field
  * @returns {Promise<Object>} Parsed V1 JSON object
  */
-async function loadV1JsonFromStyle(style) {
+export const loadV1JsonFromStyle = async (style) => {
   if (!style?.json) {
     throw new Error("Style does not contain JSON data");
   }
 
   try {
-    return typeof style.json === "string" ? JSON.parse(style.json) : style.json;
+    if (typeof style.json === "string") {
+      // Try parsing as-is first
+      try {
+        return JSON.parse(style.json);
+      } catch (firstError) {
+        // If that fails, try cleaning up common issues
+        try {
+          const cleaned = cleanupJson(style.json);
+          return JSON.parse(cleaned);
+        } catch (secondError) {
+          // If cleanup also fails, throw original error with more context
+          throw new Error(
+            `Failed to parse JSON: ${firstError.message}. ` +
+              `After cleanup attempt: ${secondError.message}. ` +
+              `JSON preview: ${style.json.substring(0, 100)}...`
+          );
+        }
+      }
+    }
+    return style.json;
   } catch (error) {
     throw new Error(`Failed to load V1 JSON from style: ${error.message}`);
   }
-}
+};
 
 /**
  * Gets the value at a JSON path
@@ -119,7 +258,7 @@ async function loadV1JsonFromStyle(style) {
  * @param {string} path - JSON path (e.g., "/styles/3/id")
  * @returns {*} Value at path or undefined
  */
-function getValueAtPath(obj, path) {
+const getValueAtPath = (obj, path) => {
   if (!path || path === "/") return obj;
 
   const parts = path.split("/").filter(Boolean);
@@ -127,12 +266,12 @@ function getValueAtPath(obj, path) {
 
   for (const part of parts) {
     if (current == null) return undefined;
-    const index = parseInt(part, 10);
-    current = !isNaN(index) ? current[index] : current[part];
+    const index = Number.parseInt(part, 10);
+    current = !Number.isNaN(index) ? current[index] : current[part];
   }
 
   return current;
-}
+};
 
 /**
  * Formats error details as YAML for TAP output
@@ -141,18 +280,50 @@ function getValueAtPath(obj, path) {
  * @param {Object} v2Json - V2 JSON object for context (optional)
  * @returns {string} YAML-formatted error block
  */
-function extractFeatureId(v2Json, path) {
+const extractFeatureId = (v2Json, path) => {
   if (!v2Json || !path) return undefined;
 
   const styleMatch = path.match(/^\/styles\/(\d+)\//);
   if (styleMatch) {
-    const styleIndex = parseInt(styleMatch[1], 10);
+    const styleIndex = Number.parseInt(styleMatch[1], 10);
     return v2Json.styles?.[styleIndex]?.id;
   }
   return undefined;
-}
+};
 
-function formatErrorYaml(message, errors = null, v2Json = null) {
+/**
+ * Deduplicates errors and counts occurrences
+ * @param {Array} errors - Array of validation errors
+ * @param {Object} v2Json - V2 JSON object for context (optional)
+ * @returns {Array} Array of deduplicated errors with count property
+ */
+const deduplicateErrors = (errors, v2Json = null) => {
+  if (!errors?.length) return [];
+
+  const errorMap = new Map();
+
+  for (const error of errors) {
+    const path = error.instancePath ?? error.schemaPath ?? "";
+    const errorMsg = error.message ?? "Validation error";
+    const featureId = extractFeatureId(v2Json, path);
+    const key = `${path}|${errorMsg}|${featureId ?? ""}`;
+
+    if (errorMap.has(key)) {
+      errorMap.get(key).count++;
+    } else {
+      errorMap.set(key, {
+        path,
+        message: errorMsg,
+        featureId,
+        count: 1,
+      });
+    }
+  }
+
+  return Array.from(errorMap.values());
+};
+
+const formatErrorYaml = (message, errors = null, v2Json = null) => {
   const lines = [`  ---`, `  message: ${JSON.stringify(message)}`];
 
   if (errors?.length) {
@@ -179,48 +350,111 @@ function formatErrorYaml(message, errors = null, v2Json = null) {
 
   lines.push(`  ...`);
   return lines.join("\n");
-}
+};
+
+/**
+ * Fetches styles, loads V1 JSON, and converts to V2 for all styles
+ * Returns an array of objects with style, v1Json, and v2Json
+ * @returns {Promise<Array>} Array of {style, v1Json, v2Json} objects
+ */
+export const fetchAndConvertStyles = async () => {
+  const styles = await getV1ExampleStyles();
+  const results = [];
+
+  for (const style of styles) {
+    try {
+      const v1Json = await loadV1JsonFromStyle(style);
+      let v2Json;
+      try {
+        v2Json = convertV1ToV2(v1Json);
+      } catch (error) {
+        results.push({
+          style,
+          v1Json,
+          v2Json: null,
+          conversionError: error.message,
+        });
+        continue;
+      }
+      results.push({
+        style,
+        v1Json,
+        v2Json,
+        conversionError: null,
+      });
+    } catch (error) {
+      results.push({
+        style,
+        v1Json: null,
+        v2Json: null,
+        loadError: error.message,
+      });
+    }
+  }
+
+  return results;
+};
 
 /**
  * Main test execution
+ * Uses fetchAndConvertStyles to ensure consistency with similarity tests
  */
-async function runTests() {
-  const styles = await getV1ExampleStyles();
+const runTests = async () => {
+  // Use the same function as similarity tests to ensure consistency
+  const results = await fetchAndConvertStyles();
 
-  if (styles.length === 0) {
+  if (results.length === 0) {
     console.error("No styles found from Snazzy Maps API");
     process.exit(1);
   }
 
   console.log("TAP version 13");
-  console.log(`1..${styles.length}`);
+  console.log(`1..${results.length}`);
 
   let passCount = 0;
   let failCount = 0;
   const failures = [];
 
-  for (let i = 0; i < styles.length; i++) {
-    const style = styles[i];
+  for (let i = 0; i < results.length; i++) {
+    const { style, v1Json, v2Json, conversionError, loadError } = results[i];
     const styleName = style.name ?? `Style #${style.id}`;
     const styleId = style.id;
     const testNumber = i + 1;
 
     try {
-      // Load V1 JSON from style
-      const v1Json = await loadV1JsonFromStyle(style);
-
-      // Convert to V2
-      let v2Json;
-      try {
-        v2Json = convertV1ToV2(v1Json);
-      } catch (error) {
-        console.log(`not ok ${testNumber} - ${styleName} (conversion failed)`);
-        console.log(formatErrorYaml(`Conversion error: ${error.message}`));
+      // Handle errors from fetching/conversion
+      if (loadError) {
+        console.log(`not ok ${testNumber} - ${styleName} (load failed)`);
+        console.log(formatErrorYaml(`Load error: ${loadError}`));
         failCount++;
         failures.push({
           style: styleName,
           styleId: styleId,
-          error: error.message,
+          error: loadError,
+        });
+        continue;
+      }
+
+      if (conversionError) {
+        console.log(`not ok ${testNumber} - ${styleName} (conversion failed)`);
+        console.log(formatErrorYaml(`Conversion error: ${conversionError}`));
+        failCount++;
+        failures.push({
+          style: styleName,
+          styleId: styleId,
+          error: conversionError,
+        });
+        continue;
+      }
+
+      if (!v1Json || !v2Json) {
+        console.log(`not ok ${testNumber} - ${styleName} (missing data)`);
+        console.log(formatErrorYaml(`Missing V1 or V2 JSON data`));
+        failCount++;
+        failures.push({
+          style: styleName,
+          styleId: styleId,
+          error: "Missing V1 or V2 JSON data",
         });
         continue;
       }
@@ -258,7 +492,7 @@ async function runTests() {
 
   // Summary
   console.log("");
-  console.log(`# tests ${styles.length}`);
+  console.log(`# tests ${results.length}`);
   console.log(`# pass  ${passCount}`);
   console.log(`# fail  ${failCount}`);
 
@@ -273,14 +507,17 @@ async function runTests() {
       }
       if (failure.errors) {
         console.log(`#     Validation errors:`);
-        for (const error of failure.errors) {
-          const path = error.instancePath ?? error.schemaPath ?? "";
-          const errorMsg = error.message ?? "Validation error";
-          const featureId = extractFeatureId(failure.v2Json, path);
-
-          let errorLine = `#       ${path}: ${errorMsg}`;
-          if (featureId !== undefined) {
-            errorLine += ` (feature: ${featureId})`;
+        const deduplicatedErrors = deduplicateErrors(
+          failure.errors,
+          failure.v2Json
+        );
+        for (const error of deduplicatedErrors) {
+          let errorLine = `#       ${error.path}: ${error.message}`;
+          if (error.featureId !== undefined) {
+            errorLine += ` (feature: ${error.featureId})`;
+          }
+          if (error.count > 1) {
+            errorLine += ` (x${error.count})`;
           }
           console.log(errorLine);
         }
@@ -290,11 +527,19 @@ async function runTests() {
   }
 
   process.exit(0);
-}
+};
 
-// Run tests
-runTests().catch((error) => {
-  console.error(`Fatal error: ${error.message}`);
-  console.error(error.stack);
-  process.exit(1);
-});
+// Run tests only if this file is executed directly (not imported)
+// Check if this is the main module by comparing the file path
+const isMainModule =
+  process.argv[1] &&
+  (process.argv[1].endsWith("validate-conversions.js") ||
+    process.argv[1].includes("validate-conversions.js"));
+
+if (isMainModule) {
+  runTests().catch((error) => {
+    console.error(`Fatal error: ${error.message}`);
+    console.error(error.stack);
+    process.exit(1);
+  });
+}
