@@ -3,6 +3,8 @@
  * Handles fetching styles from the Snazzy Maps API
  */
 
+import { cache, CACHE_CONFIG } from "../utils/cache.js";
+
 const API_BASE_URL = "https://snazzymaps.com/explore.json";
 
 /**
@@ -68,7 +70,7 @@ const handleApiResponse = async (response) => {
 };
 
 /**
- * Fetches styles from Snazzy Maps API
+ * Fetches styles from Snazzy Maps API with caching
  * @param {Object} options - Query parameters
  * @param {string} [options.sort] - Sort order (e.g., 'popular', 'newest', 'alphabetical')
  * @param {string|string[]} [options.tag] - Filter by tag(s) - can be single tag or array
@@ -79,18 +81,49 @@ const handleApiResponse = async (response) => {
  * @returns {Promise<Object>} API response with styles array
  */
 export async function fetchStyles(options = {}) {
-  const params = buildSearchParams({
+  const normalizedOptions = {
     ...options,
     page: options.page ?? 1,
     pageSize: options.pageSize ?? 12,
-  });
+  };
 
+  // Generate cache key
+  const cacheKey = cache.generateKey("styles", normalizedOptions);
+
+  // Determine TTL based on request type
+  let ttl = CACHE_CONFIG.TTL.STYLES_LIST;
+  if (normalizedOptions.text) {
+    // Search queries have shorter TTL
+    ttl = CACHE_CONFIG.TTL.STYLES_LIST_SEARCH;
+  } else if (normalizedOptions.sort === "popular") {
+    // Popular styles have longer TTL
+    ttl = CACHE_CONFIG.TTL.STYLES_LIST_POPULAR;
+  }
+
+  // Check cache first
+  const cachedData = cache.get(cacheKey);
+  if (cachedData !== null) {
+    return cachedData;
+  }
+
+  // Stale-while-revalidate: if we have expired data, return it while fetching fresh
+  const staleData = cache.getStale(cacheKey);
+
+  // Fetch fresh data
   try {
+    const params = buildSearchParams(normalizedOptions);
     const data = await handleApiResponse(
       await fetch(`${API_BASE_URL}?${params.toString()}`)
     );
+
+    // Cache successful response
+    cache.set(cacheKey, data, ttl);
     return data;
   } catch (error) {
+    // If fetch fails and we have stale data, return it
+    if (staleData) {
+      return staleData;
+    }
     throw new Error(
       `Failed to fetch styles from Snazzy Maps: ${error.message}`
     );
@@ -121,6 +154,19 @@ const extractStyleData = (data) => {
 };
 
 export async function fetchStyleById(styleId) {
+  // Generate cache key
+  const cacheKey = cache.generateKey("style", { id: styleId });
+  const ttl = CACHE_CONFIG.TTL.STYLE_BY_ID;
+
+  // Check cache first
+  const cachedData = cache.get(cacheKey);
+  if (cachedData !== null) {
+    return cachedData;
+  }
+
+  // Stale-while-revalidate: if we have expired data, return it while fetching fresh
+  const staleData = cache.getStale(cacheKey);
+
   try {
     const params = new URLSearchParams();
     params.append("key", getApiKey());
@@ -132,6 +178,7 @@ export async function fetchStyleById(styleId) {
 
     const styleData = extractStyleData(data);
 
+    // Parse JSON and cache the parsed result
     if (styleData?.json) {
       try {
         styleData.parsedJson = JSON.parse(styleData.json);
@@ -140,8 +187,16 @@ export async function fetchStyleById(styleId) {
       }
     }
 
-    return styleData ?? data;
+    const result = styleData ?? data;
+
+    // Cache successful response (including parsed JSON)
+    cache.set(cacheKey, result, ttl);
+    return result;
   } catch (error) {
+    // If fetch fails and we have stale data, return it
+    if (staleData) {
+      return staleData;
+    }
     throw new Error(
       `Failed to fetch style ${styleId} from Snazzy Maps: ${error.message}`
     );
@@ -252,6 +307,19 @@ const extractStylesFromResponse = (response) =>
     : response?.results ?? response?.styles ?? response?.data ?? [];
 
 export async function fetchAvailableFilters(maxPages = 5) {
+  // Generate cache key (filters are stable, so we use a single key)
+  const cacheKey = cache.generateKey("filters", {});
+  const ttl = CACHE_CONFIG.TTL.FILTERS;
+
+  // Check cache first
+  const cachedData = cache.get(cacheKey);
+  if (cachedData !== null) {
+    return cachedData;
+  }
+
+  // Stale-while-revalidate: if we have expired data, return it while fetching fresh
+  const staleData = cache.getStale(cacheKey);
+
   const tagsSet = new Set();
   const colorsSet = new Set();
 
@@ -269,12 +337,24 @@ export async function fetchAvailableFilters(maxPages = 5) {
       extractTagsFromStyles(styles).forEach((tag) => tagsSet.add(tag));
       extractColorsFromStyles(styles).forEach((color) => colorsSet.add(color));
     }
-  } catch (error) {
-    console.warn("Failed to fetch all filter options:", error);
-  }
 
-  return {
-    tags: Array.from(tagsSet).sort(),
-    colors: Array.from(colorsSet).sort(),
-  };
+    const result = {
+      tags: Array.from(tagsSet).sort(),
+      colors: Array.from(colorsSet).sort(),
+    };
+
+    // Cache successful response
+    cache.set(cacheKey, result, ttl);
+    return result;
+  } catch (error) {
+    // If fetch fails and we have stale data, return it
+    if (staleData) {
+      return staleData;
+    }
+    console.warn("Failed to fetch all filter options:", error);
+    return {
+      tags: [],
+      colors: [],
+    };
+  }
 }
