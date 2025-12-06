@@ -115,7 +115,7 @@ const extractV2Styling = (v2Json) => {
         "strokeColor",
         "color",
         "visible",
-        "strokeWeight",
+        "strokeWidth",
       ];
 
       for (const prop of geometryProps) {
@@ -1145,12 +1145,12 @@ const compareStyling = (v1Styling, v2Styling, v1Json, v2Variant) => {
 
           for (const v2Id of v2Ids) {
             const v2Style = v2Styling[v2Id];
-            const strokeWeight = v2Style?.geometry?.strokeWeight;
+            const strokeWidth = v2Style?.geometry?.strokeWidth;
 
-            if (strokeWeight === undefined) continue;
+            if (strokeWidth === undefined) continue;
 
             const expectedWeight = parseFloat(rule.weight);
-            const diff = Math.abs(expectedWeight - strokeWeight);
+            const diff = Math.abs(expectedWeight - strokeWidth);
 
             if (diff > WEIGHT_TOLERANCE) {
               differences.push({
@@ -1159,7 +1159,7 @@ const compareStyling = (v1Styling, v2Styling, v1Json, v2Variant) => {
                 v1ElementType: elementType,
                 v2FeatureId: v2Id,
                 expected: rule.weight,
-                actual: strokeWeight,
+                actual: strokeWidth,
               });
             }
           }
