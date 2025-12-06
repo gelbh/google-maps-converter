@@ -54,9 +54,27 @@ const initializeEditors = () => {
     viewportMargin: Infinity,
   });
 
-  // Set fixed height for editors
-  v1Input.setSize(null, "300px");
-  v2Output.setSize(null, "300px");
+  // Set responsive height for editors using clamp()
+  const getResponsiveHeight = () => {
+    const minHeight = 300;
+    const preferredHeight = window.innerHeight * 0.35;
+    const maxHeight = 500;
+    return `${Math.max(minHeight, Math.min(preferredHeight, maxHeight))}px`;
+  };
+
+  const updateEditorHeights = () => {
+    const height = getResponsiveHeight();
+    v1Input.setSize(null, height);
+    v2Output.setSize(null, height);
+  };
+
+  // Set initial height
+  updateEditorHeights();
+
+  // Update on window resize
+  window.addEventListener("resize", () => {
+    updateEditorHeights();
+  });
 
   // Apply custom dark theme styling
   const cmStyle = document.createElement("style");

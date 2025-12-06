@@ -125,6 +125,123 @@
   opacity: 1;
 }
 
+/* Container Queries for Component-Level Responsiveness */
+@container (max-width: 640px) {
+  #style-results-grid {
+    grid-template-columns: 1fr;
+    gap: clamp(0.75rem, 2vw, 1rem);
+  }
+}
+
+@container (min-width: 641px) and (max-width: 1024px) {
+  #style-results-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: clamp(0.75rem, 2vw, 1rem);
+  }
+}
+
+@container (min-width: 1025px) {
+  #style-results-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(0.75rem, 2vw, 1rem);
+  }
+}
+
+/* Container query for sidebar responsiveness */
+@container (max-width: 400px) {
+  #filter-controls-section {
+    font-size: clamp(0.75rem, 2vw, 0.875rem);
+  }
+
+  #style-modal-body .w-80 {
+    padding: clamp(0.5rem, 2vw, 1rem);
+  }
+}
+
+/* Container query for button groups - only in modal sidebar on very small containers */
+@container (max-width: 400px) {
+  #style-modal-body .flex.gap-2.flex-wrap {
+    flex-direction: column;
+  }
+
+  #style-modal-body .flex.gap-2.flex-wrap > * {
+    width: 100%;
+  }
+}
+
+/* Modal container queries for better mobile behavior */
+@container (max-width: 768px) {
+  #style-modal-body {
+    flex-direction: column;
+  }
+
+  #style-modal-body .w-80 {
+    width: 100%;
+    max-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    max-height: 40dvh;
+  }
+}
+
+/* Fluid Typography Utilities */
+.fluid-text-base {
+  font-size: clamp(0.875rem, 2vw, 1rem);
+}
+
+.fluid-text-lg {
+  font-size: clamp(1rem, 2.5vw, 1.125rem);
+}
+
+.fluid-text-xl {
+  font-size: clamp(1.125rem, 3vw, 1.25rem);
+}
+
+.fluid-text-2xl {
+  font-size: clamp(1.25rem, 3.5vw, 1.5rem);
+}
+
+.fluid-text-3xl {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+/* Fluid Spacing Utilities */
+.fluid-gap {
+  gap: clamp(0.25rem, 1vw, 0.5rem);
+}
+
+.fluid-padding {
+  padding: clamp(0.5rem, 2vw, 1rem);
+}
+
+.fluid-margin {
+  margin: clamp(0.5rem, 2vw, 1rem);
+}
+
+/* Responsive textarea heights */
+.responsive-textarea-height {
+  min-height: clamp(300px, 35dvh, 500px);
+  height: clamp(300px, 35dvh, 500px);
+}
+
+/* Touch-friendly button base styles */
+button:not([class*="flex"]),
+a.button-like:not([class*="flex"]),
+label.button-like:not([class*="flex"]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure all buttons with min-height have proper centering */
+button[min-h],
+a[min-h],
+label[min-h] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Responsive modal adjustments */
 @media (max-width: 1024px) {
   /* Stack sidebar and content vertically on smaller screens */
@@ -136,13 +253,13 @@
     width: 100%;
     border-right: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    max-height: 50vh;
+    max-height: 50dvh;
   }
 }
 
 @media (max-width: 640px) {
   #style-modal .max-w-6xl {
     max-width: 95vw;
-    margin: 1rem;
+    margin: clamp(0.5rem, 2vw, 1rem);
   }
 }
