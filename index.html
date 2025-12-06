@@ -19,18 +19,42 @@
       class="max-w-[1400px] mx-auto bg-black/20 backdrop-blur-lg rounded-lg shadow-xl border border-white/10 overflow-hidden"
     >
       <header
-        class="bg-black/30 backdrop-blur-md text-white p-4 text-center border-b border-white/10"
+        class="bg-black/30 backdrop-blur-md text-white p-4 border-b border-white/10"
       >
-        <h1 class="text-3xl font-semibold mb-2">
-          Google Maps V1 to V2 Style Converter
-        </h1>
-        <p class="text-base opacity-95 max-w-3xl mx-auto">
+        <div class="flex justify-between items-center mb-2 gap-4">
+          <h1 class="text-2xl md:text-3xl font-semibold flex-1 text-center">
+            Google Maps V1 to V2 Style Converter
+          </h1>
+          <a
+            href="https://github.com/gelbh/google-maps-converter"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 text-white/90 hover:text-white transition-colors text-sm flex-shrink-0 md:text-base"
+            title="View on GitHub"
+          >
+            <svg
+              class="w-5 h-5 md:w-7 md:h-7"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.532 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </a>
+        </div>
+        <p class="text-base opacity-95 max-w-3xl mx-auto text-center">
           Convert Google Maps JavaScript API V1 style JSON to V2 CBMS format.
           Paste your V1 JSON or load an example to get started.
         </p>
       </header>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 pb-2">
+      <div
+        class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-1 md:gap-2 p-4 pb-2"
+      >
         <div
           class="flex flex-col bg-white/10 backdrop-blur-sm rounded-lg p-3 border border-white/20"
         >
@@ -54,22 +78,87 @@
               >
                 Browse Snazzy Maps Styles
               </button>
-              <button
-                id="clear-btn"
-                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors"
+              <a
+                href="https://snazzymaps.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="px-4 py-2 rounded-md text-sm font-medium cursor-pointer bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20 transition-colors inline-block"
+                title="Visit Snazzy Maps"
               >
-                Clear
-              </button>
+                Visit Snazzy Maps
+              </a>
             </div>
           </div>
           <div
             id="v1-input-wrapper"
-            class="w-full h-[250px] border-2 border-white/10 rounded-md overflow-hidden bg-black/20 backdrop-blur-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+            class="w-full h-[300px] border-2 border-white/10 rounded-md overflow-hidden bg-black/20 backdrop-blur-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
           >
             <textarea
               id="v1-input"
               placeholder="Paste your V1 style JSON here..."
             ></textarea>
+          </div>
+        </div>
+
+        <!-- Convert Button in Middle -->
+        <div class="hidden md:flex items-center justify-center">
+          <div class="flex flex-col items-center gap-2">
+            <button
+              id="convert-btn"
+              class="px-4 py-3 rounded-md text-base font-semibold cursor-pointer bg-white/30 text-white hover:bg-white/40 backdrop-blur-md border-2 border-white/30 hover:border-white/50 transition-all hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2"
+            >
+              <span>Convert</span>
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13 7l5 5m0 0l-5 5m5-5H6"
+                />
+              </svg>
+            </button>
+            <div
+              id="loading"
+              class="hidden text-muted-foreground italic text-sm text-center"
+            >
+              <span>Processing...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mobile Convert Button -->
+        <div class="md:hidden flex justify-center -mt-1 mb-1">
+          <button
+            id="convert-btn-mobile"
+            class="px-8 py-3 rounded-md text-base font-semibold cursor-pointer bg-white/30 text-white hover:bg-white/40 backdrop-blur-md border-2 border-white/30 hover:border-white/50 transition-all hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2"
+          >
+            <span>Convert</span>
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+        </div>
+        <div class="md:hidden text-center mb-1">
+          <div
+            id="loading-mobile"
+            class="hidden text-muted-foreground italic text-sm"
+          >
+            <span>Processing...</span>
           </div>
         </div>
 
@@ -99,7 +188,7 @@
           </div>
           <div
             id="v2-output-wrapper"
-            class="w-full h-[250px] border-2 border-white/10 rounded-md overflow-hidden bg-black/20 backdrop-blur-sm"
+            class="w-full h-[300px] border-2 border-white/10 rounded-md overflow-hidden bg-black/20 backdrop-blur-sm"
           >
             <textarea
               id="v2-output"
@@ -110,17 +199,193 @@
         </div>
       </div>
 
+      <!-- Instructions Section -->
       <div
-        class="p-3 text-center border-t border-white/10 bg-black/10 backdrop-blur-sm"
+        class="m-4 p-4 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg"
       >
         <button
-          id="convert-btn"
-          class="px-8 py-3 rounded-md text-base font-semibold cursor-pointer bg-white/30 text-white hover:bg-white/40 backdrop-blur-md border-2 border-white/30 hover:border-white/50 transition-all hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+          id="instructions-toggle"
+          class="w-full flex items-center justify-between gap-2 text-white hover:text-white/90 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 rounded-md p-2"
+          aria-expanded="false"
+          aria-controls="instructions-content"
         >
-          Convert
+          <h3 class="text-lg font-semibold flex items-center gap-2">
+            <svg
+              class="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            How to Use Your V2 Style in Google Cloud Console
+          </h3>
+          <svg
+            id="instructions-toggle-icon"
+            class="w-5 h-5 transition-transform"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
         </button>
-        <div id="loading" class="hidden mt-4 text-muted-foreground italic">
-          <span>Processing...</span>
+        <div
+          id="instructions-content"
+          class="hidden mt-4 text-white/80 text-sm space-y-4"
+        >
+          <div class="space-y-3">
+            <div class="flex gap-3">
+              <span
+                class="flex-shrink-0 w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-semibold"
+                >1</span
+              >
+              <div>
+                <p class="font-semibold text-white mb-1">
+                  Access Google Cloud Console
+                </p>
+                <p>
+                  Navigate to the
+                  <a
+                    href="https://console.cloud.google.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-blue-400 hover:text-blue-300 underline"
+                    >Google Cloud Console</a
+                  >
+                  and sign in with your credentials.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <span
+                class="flex-shrink-0 w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-semibold"
+                >2</span
+              >
+              <div>
+                <p class="font-semibold text-white mb-1">
+                  Navigate to Map Styles
+                </p>
+                <p>
+                  Go to the
+                  <a
+                    href="https://console.cloud.google.com/google/maps-apis/studio/styles"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-blue-400 hover:text-blue-300 underline"
+                    >Map Styles</a
+                  >
+                  section in Google Cloud Console. If prompted, select the
+                  appropriate project.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <span
+                class="flex-shrink-0 w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-semibold"
+                >3</span
+              >
+              <div>
+                <p class="font-semibold text-white mb-1">
+                  Create a New Map Style
+                </p>
+                <p class="mb-2">
+                  Click on <strong>Create Style</strong>, then in the dialog
+                  that appears, select the <strong>JSON</strong> tab.
+                </p>
+                <p>
+                  You can either paste your converted V2 JSON directly into the
+                  provided field, or upload the JSON file you downloaded using
+                  the <strong>Upload a JSON File</strong> button.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <span
+                class="flex-shrink-0 w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-semibold"
+                >4</span
+              >
+              <div>
+                <p class="font-semibold text-white mb-1">
+                  Validate and Customize Your Style
+                </p>
+                <p class="mb-2">Check for any errors in your JSON:</p>
+                <ul class="list-disc list-inside ml-2 space-y-1">
+                  <li>
+                    If errors are present, a warning will indicate the number of
+                    errors. Expand the warning to view details.
+                  </li>
+                  <li>
+                    If the JSON is valid, a map preview will display your custom
+                    style, and the <strong>Customize</strong> button will become
+                    available.
+                  </li>
+                </ul>
+                <p class="mt-2">
+                  Click <strong>Customize</strong> to create a new map style and
+                  optionally modify feature styles as needed.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <span
+                class="flex-shrink-0 w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-semibold"
+                >5</span
+              >
+              <div>
+                <p class="font-semibold text-white mb-1">
+                  Save and Publish Your Map Style
+                </p>
+                <p class="mb-2">
+                  Click <strong>Save</strong>. In the
+                  <strong>Save and Publish Map Style</strong> dialog, enter a
+                  name for your style and, optionally, a description.
+                </p>
+                <p>
+                  Click <strong>Save</strong> again. The style is automatically
+                  published, and you'll be directed to your new style's main
+                  page.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex gap-3">
+              <span
+                class="flex-shrink-0 w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs font-semibold"
+                >6</span
+              >
+              <div>
+                <p class="font-semibold text-white mb-1">
+                  Associate Your Style with a Map ID
+                </p>
+                <p>
+                  To apply your new style to a map, associate it with a map ID.
+                  For detailed instructions, refer to the
+                  <a
+                    href="https://developers.google.com/maps/documentation/maps-static/cloud-customization/json"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-blue-400 hover:text-blue-300 underline"
+                    >Google Maps Platform documentation</a
+                  >.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -151,31 +416,6 @@
           class="text-sm text-yellow-100"
         ></div>
       </div>
-
-      <footer
-        class="p-4 text-center border-t border-white/10 bg-black/10 backdrop-blur-sm"
-      >
-        <a
-          href="https://github.com/gelbh/google-maps-converter"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-flex items-center gap-2 text-white/70 hover:text-white transition-colors text-sm"
-        >
-          <svg
-            class="w-5 h-5"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.532 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-              clip-rule="evenodd"
-            />
-          </svg>
-          View on GitHub
-        </a>
-      </footer>
     </div>
 
     <!-- Snazzy Maps Style Browser Modal -->
@@ -266,7 +506,10 @@
               </div>
 
               <!-- Results Count -->
-              <div id="results-count" class="text-white/70 text-sm pb-2 border-b border-white/10">
+              <div
+                id="results-count"
+                class="text-white/70 text-sm pb-2 border-b border-white/10"
+              >
                 Loading...
               </div>
 

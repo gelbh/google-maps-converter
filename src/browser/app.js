@@ -55,8 +55,8 @@ const initializeEditors = () => {
   });
 
   // Set fixed height for editors
-  v1Input.setSize(null, "250px");
-  v2Output.setSize(null, "250px");
+  v1Input.setSize(null, "300px");
+  v2Output.setSize(null, "300px");
 
   // Apply custom dark theme styling
   const cmStyle = document.createElement("style");
@@ -69,6 +69,46 @@ const initializeEditors = () => {
     }
     .CodeMirror-scroll {
       height: 100% !important;
+      scrollbar-width: thin !important;
+      scrollbar-color: rgba(255, 255, 255, 0.2) transparent !important;
+    }
+    .CodeMirror-scroll::-webkit-scrollbar {
+      width: 8px !important;
+      height: 8px !important;
+    }
+    .CodeMirror-scroll::-webkit-scrollbar-track {
+      background: transparent !important;
+    }
+    .CodeMirror-scroll::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2) !important;
+      border-radius: 4px !important;
+      transition: background 0.2s ease !important;
+    }
+    .CodeMirror-scroll::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3) !important;
+    }
+    .CodeMirror {
+      scrollbar-width: thin !important;
+      scrollbar-color: rgba(255, 255, 255, 0.2) transparent !important;
+    }
+    .CodeMirror::-webkit-scrollbar {
+      width: 8px !important;
+      height: 8px !important;
+    }
+    .CodeMirror::-webkit-scrollbar-track {
+      background: transparent !important;
+    }
+    .CodeMirror::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2) !important;
+      border-radius: 4px !important;
+      transition: background 0.2s ease !important;
+    }
+    .CodeMirror::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3) !important;
+    }
+    .CodeMirror-scrollbar-filler,
+    .CodeMirror-gutter-filler {
+      background: transparent !important;
     }
     .CodeMirror-gutters {
       background: rgba(0, 0, 0, 0.3) !important;
@@ -109,26 +149,53 @@ const getElement = (id) => document.getElementById(id);
 
 // DOM elements
 const convertBtn = getElement("convert-btn");
-const clearBtn = getElement("clear-btn");
+const convertBtnMobile = getElement("convert-btn-mobile");
 const copyBtn = getElement("copy-btn");
 const downloadBtn = getElement("download-btn");
 const fileInput = getElement("file-input");
 const loading = getElement("loading");
+const loadingMobile = getElement("loading-mobile");
 const errorDisplay = getElement("error-display");
 const validationStatus = getElement("validation-status");
 const validationErrors = getElement("validation-errors");
 const validationErrorsContent = getElement("validation-errors-content");
 const closeValidationErrors = getElement("close-validation-errors");
+const instructionsToggle = getElement("instructions-toggle");
+const instructionsContent = getElement("instructions-content");
+const instructionsToggleIcon = getElement("instructions-toggle-icon");
 
 function initializeApp(v1Input, v2Output) {
   let currentV2Output = null;
 
   convertBtn?.addEventListener("click", handleConvert);
-  clearBtn?.addEventListener("click", handleClear);
+  convertBtnMobile?.addEventListener("click", handleConvert);
   copyBtn?.addEventListener("click", handleCopy);
   downloadBtn?.addEventListener("click", handleDownload);
   fileInput?.addEventListener("change", handleFileUpload);
   closeValidationErrors?.addEventListener("click", hideValidationErrors);
+  
+  // Initialize instructions toggle
+  instructionsToggle?.addEventListener("click", () => {
+    const isCurrentlyHidden = instructionsContent?.classList.contains("hidden");
+    
+    // Toggle the content visibility
+    instructionsContent?.classList.toggle("hidden");
+    
+    // Update aria-expanded attribute
+    if (instructionsToggle) {
+      instructionsToggle.setAttribute(
+        "aria-expanded",
+        isCurrentlyHidden ? "true" : "false"
+      );
+    }
+    
+    // Rotate the icon
+    if (instructionsToggleIcon) {
+      instructionsToggleIcon.style.transform = isCurrentlyHidden
+        ? "rotate(180deg)"
+        : "rotate(0deg)";
+    }
+  });
 
   /**
    * Initialize the style browser modal
@@ -801,17 +868,6 @@ function initializeApp(v1Input, v2Output) {
     }
   }
 
-  /**
-   * Handles clear action
-   */
-  function handleClear() {
-    v1Input.setValue("");
-    v2Output.setValue("");
-    currentV2Output = null;
-    hideError();
-    updateValidationStatus("", "");
-    v1Input.focus();
-  }
 
   /**
    * Handles copy to clipboard
@@ -874,7 +930,9 @@ function initializeApp(v1Input, v2Output) {
 
   const showLoading = (show) => {
     loading?.classList.toggle("hidden", !show);
+    loadingMobile?.classList.toggle("hidden", !show);
     convertBtn && (convertBtn.disabled = show);
+    convertBtnMobile && (convertBtnMobile.disabled = show);
   };
 
   const STATUS_CLASSES = {
