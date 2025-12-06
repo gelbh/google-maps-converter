@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/validate-conversions.js",
+    "test": "node test/validate-conversions.js && node test/validate-similarity.js",
+    "test:similarity": "node test/validate-similarity.js",
     "prepare": "husky"
   },
   "keywords": [
